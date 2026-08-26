@@ -41,3 +41,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# skills ที่ติดตั้งจาก skills-lock.json สร้างใหม่ได้ ไม่ต้องเก็บใน git
+.agents/
+.claude/skills/
