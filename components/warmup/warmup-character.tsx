@@ -13,6 +13,7 @@ import {
   type SkeletonPoints,
   type WarmUpMoveDef,
 } from '@/components/warmup/skeleton';
+import type { ThemeColors } from '@/constants/theme';
 
 /**
  * ตัวละครวอร์มอัพวาดด้วย Skia
@@ -48,6 +49,23 @@ export interface CharacterColors {
   far: string;
   glow: string;
   ground: string;
+}
+
+/**
+ * ดึงสีตัวละครจากธีมปัจจุบัน
+ *
+ * ทุกจอที่วาด WarmupCharacter ต้องแปลง ThemeColors เป็น CharacterColors แบบเดียวกันเสมอ
+ * ก่อนหน้านี้แต่ละจอเขียนแมปสีชุดนี้ซ้ำเอง จนหน้าวอร์มอัพจริง (ตั๋ว 08) ก็อปมาจากหน้าตัวอย่าง
+ * ของตั๋ว 07 ที่ถูกลบไปแล้ว รวมไว้ที่เดียวกันเลยเพื่อไม่ให้เกิดสำเนาที่สามในอนาคต
+ */
+export function characterColorsFrom(colors: ThemeColors): CharacterColors {
+  return {
+    stage: colors.characterStage,
+    near: colors.characterNear,
+    far: colors.characterFar,
+    glow: colors.characterGlow,
+    ground: colors.characterGround,
+  };
 }
 
 interface Props {

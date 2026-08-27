@@ -81,12 +81,12 @@ export default function HomeScreen() {
 
       <Card>
         <AppText variant="heading" weight="semibold">
-          ตัวละครวอร์มอัพ
+          วอร์มอัพ
         </AppText>
         <AppText variant="body" tone="muted">
-          ดูตัวอย่างท่าวอร์มอัพทั้งแปด หน้าวอร์มอัพจริงที่เลือกชุดวอร์มอัพอัตโนมัติตามอากาศและฟอร์มครั้งก่อนอยู่ในตั๋ว 08
+          ชุดท่าที่เลือกมาให้สำหรับวันนี้โดยเฉพาะ ตามอากาศตอนนี้และปรับความยาวได้
         </AppText>
-        <Button label="ดูตัวอย่างท่าวอร์มอัพ" onPress={() => router.push('/warmup-preview')} variant="secondary" />
+        <Button label="เริ่มวอร์มอัพ" onPress={() => router.push('/warmup')} variant="secondary" />
       </Card>
     </Screen>
   );
