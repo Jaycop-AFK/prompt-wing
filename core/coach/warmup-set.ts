@@ -1,3 +1,4 @@
+import { magnitudeOf } from './session-target';
 import type {
   ClearanceFactor,
   RampPhase,
@@ -61,18 +62,6 @@ const SESSION_TARGET_THRESHOLDS: Record<SessionTarget['kind'], { long: number; s
   time: { long: 45, short: 20 },
   calories: { long: 400, short: 150 },
 };
-
-/** ตัวเลขดิบของ SessionTarget ไม่ว่าจะตั้งเป็นระยะทาง เวลา หรือแคลอรี */
-function magnitudeOf(target: SessionTarget): number {
-  switch (target.kind) {
-    case 'distance':
-      return target.km;
-    case 'time':
-      return target.minutes;
-    case 'calories':
-      return target.kcal;
-  }
-}
 
 function isLongSessionTarget(target: SessionTarget | null): boolean {
   if (target === null) return false;

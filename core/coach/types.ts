@@ -133,3 +133,17 @@ export interface WarmUpSet {
   /** เหตุผลที่ปรับชุดจากค่าเริ่มต้น ว่างเปล่าเมื่อไม่มีการปรับ แสดงให้ผู้ใช้เห็นเสมอ */
   reasons: string[];
 }
+
+/** SessionTarget ที่อาจถูกลดลงจากที่ผู้ใช้ตั้งไว้ เพราะใบอนุญาตวิ่งวันนี้เป็นสีเหลือง */
+export interface ReducedSessionTarget {
+  target: SessionTarget;
+  /** เหตุผลที่ลดเป้าหมายรอบนี้ลง null เมื่อไม่ได้ลด */
+  reason: string | null;
+}
+
+/** สรุปก่อนเริ่มวิ่ง คาดการณ์จาก SessionTarget ที่จะใช้จริง (หลังลดแล้วถ้ามีการลด) */
+export interface SessionSummary {
+  estimatedMinutes: number;
+  estimatedKcal: number;
+  recommendedPaceSecPerKm: number;
+}
