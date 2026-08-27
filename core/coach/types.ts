@@ -68,3 +68,68 @@ export interface EvaluateRunClearanceInput {
   /** เวลาปัจจุบัน */
   now: EpochMillis;
 }
+
+/** เหตุผลที่ผู้ใช้วิ่ง ตั้งครั้งเดียวแล้วกำหนดเป้าหมายรายวันทั้งเดือน */
+export type Objective = 'loseWeight' | 'health' | 'marathon' | 'endurance';
+
+/** การวิ่งครั้งหนึ่งในอดีต ย่อเหลือแค่สิ่งที่ตัวตัดสินใจต้องใช้ */
+export interface RunHistoryEntry {
+  at: EpochMillis;
+  distanceKm: number;
+}
+
+/** ระยะทางที่ควรสะสมให้ครบภายในวันนี้ เกิดจาก Objective ไม่ใช่ผู้ใช้ตั้งเอง */
+export interface DailyGoal {
+  distanceKm: number;
+}
+
+/** ตัวอย่างหนึ่งจุดระหว่างการวิ่ง เรียงจากระยะสะสมน้อยไปมาก */
+export interface FormSample {
+  /** ระยะสะสมจากจุดเริ่มวิ่ง หน่วยกิโลเมตร */
+  distanceKm: number;
+  cadenceSpm: number;
+  /** วินาทีต่อกิโลเมตร ณ ตัวอย่างนี้ ยิ่งมากยิ่งช้า */
+  paceSecPerKm: number;
+}
+
+/** การประเมินคุณภาพท่าวิ่งหลังจบ Session หนึ่งครั้ง */
+export interface FormScore {
+  /** false เมื่อ Session สั้นเกินกว่าจะประเมินได้ ค่าฟิลด์อื่นไม่มีความหมายเมื่อเป็น false */
+  hasEnoughData: boolean;
+  cadenceDropped: boolean;
+  paceDropped: boolean;
+  /** ประโยคภาษาไทยที่บอกผู้ใช้ว่าควรทำอะไรต่อ มีเสมอไม่ว่าผลจะเป็นอย่างไร */
+  summary: string;
+}
+
+/** สิ่งที่ผู้ใช้ตั้งใจจะทำให้ได้ในการวิ่งครั้งเดียวที่กำลังจะเริ่ม */
+export type SessionTarget =
+  | { kind: 'distance'; km: number }
+  | { kind: 'time'; minutes: number }
+  | { kind: 'calories'; kcal: number };
+
+/**
+ * ขั้นหนึ่งของ RAMP ทุกชุดวอร์มอัพต้องมีท่าอย่างน้อยหนึ่งท่าจากทุกขั้น
+ *
+ * components/warmup/skeleton.ts ก็ประกาศยูเนียนนี้ซ้ำอีกชุดหนึ่งด้วยค่าเดียวกันเป๊ะ
+ * ตั้งใจไม่ import ข้ามมาใช้ร่วมกัน เพราะ core/coach ต้องไม่ผูกกับโฟลเดอร์ UI เลยแม้แต่ตอน
+ * import แค่ type ก็ตาม ถ้าจะเพิ่มขั้นที่ห้าในอนาคตต้องแก้ทั้งสองที่ด้วยมือ
+ */
+export type RampPhase = 'raise' | 'activate' | 'mobilise' | 'potentiate';
+
+/** จำนวนนาทีที่เลือกวอร์มอัพได้ ตรงกับสามตัวเลือกในหน้าวอร์มอัพ */
+export type WarmUpMinutes = 5 | 10 | 15;
+
+/** ท่าหนึ่งท่าในชุดวอร์มอัพ พร้อมเวลาที่ควรทำ */
+export interface WarmUpSlot {
+  moveId: string;
+  seconds: number;
+}
+
+/** ชุดวอร์มอัพที่ระบบเลือกมาให้สำหรับการวิ่งครั้งนี้โดยเฉพาะ */
+export interface WarmUpSet {
+  slots: WarmUpSlot[];
+  totalSeconds: number;
+  /** เหตุผลที่ปรับชุดจากค่าเริ่มต้น ว่างเปล่าเมื่อไม่มีการปรับ แสดงให้ผู้ใช้เห็นเสมอ */
+  reasons: string[];
+}

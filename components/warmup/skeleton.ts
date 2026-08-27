@@ -55,6 +55,10 @@ export type MuscleTarget = 'calfShin' | 'thighHip' | 'glute' | 'ankle' | 'core';
  */
 export type SkeletonView = 'side' | 'front';
 export type SkeletonOrientation = 'standing' | 'supine';
+/**
+ * core/coach/types.ts ก็ประกาศยูเนียนนี้ซ้ำอีกชุดหนึ่งด้วยค่าเดียวกันเป๊ะ ไม่ import ข้ามมา
+ * ใช้ร่วมกัน ด้วยเหตุผลเดียวกับที่ตรงนั้นเขียนไว้ ต้องแก้ทั้งสองที่ด้วยมือถ้าจะเพิ่มขั้นที่ห้า
+ */
 export type RampPhase = 'raise' | 'activate' | 'mobilise' | 'potentiate';
 
 export interface WarmUpMoveDef {
