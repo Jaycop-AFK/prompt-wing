@@ -79,7 +79,15 @@ export default function HomeScreen() {
         แถบความคืบหน้าเป้าหมายรายวัน ซึ่งเปลี่ยนตามเป้าหมายระยะยาวที่ผู้ใช้เลือกไว้
       </ComingSoon>
 
-      <ComingSoon ticket="08">ปุ่มวอร์มอัพ ที่พาไปยังชุดท่าที่เลือกมาให้สำหรับวันนี้</ComingSoon>
+      <Card>
+        <AppText variant="heading" weight="semibold">
+          ตัวละครวอร์มอัพ
+        </AppText>
+        <AppText variant="body" tone="muted">
+          ดูตัวอย่างท่าวอร์มอัพทั้งแปด หน้าวอร์มอัพจริงที่เลือกชุดวอร์มอัพอัตโนมัติตามอากาศและฟอร์มครั้งก่อนอยู่ในตั๋ว 08
+        </AppText>
+        <Button label="ดูตัวอย่างท่าวอร์มอัพ" onPress={() => router.push('/warmup-preview')} variant="secondary" />
+      </Card>
     </Screen>
   );
 }

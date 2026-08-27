@@ -37,6 +37,13 @@ export interface ThemeColors {
   /** พื้นของป้ายที่บอกว่าเป็นข้อมูลจำลอง */
   mockBadge: string;
   mockBadgeText: string;
+
+  /** สีของตัวละครวอร์มอัพ ข้างใกล้สว่างกว่าข้างไกลเพื่อให้ดูออกว่าใช้ข้างไหน */
+  characterStage: string;
+  characterNear: string;
+  characterFar: string;
+  characterGlow: string;
+  characterGround: string;
 }
 
 export interface AppTheme {
@@ -73,6 +80,12 @@ export const lightTheme: AppTheme = {
 
     mockBadge: '#EEF0F3',
     mockBadgeText: '#6B7280',
+
+    characterStage: '#EDF3ED',
+    characterNear: '#243329',
+    characterFar: '#9FB3A6',
+    characterGlow: '#3FA34D',
+    characterGround: '#D8DED9',
   },
 };
 
@@ -105,6 +118,12 @@ export const darkTheme: AppTheme = {
 
     mockBadge: '#232B2E',
     mockBadgeText: '#9BA9A3',
+
+    characterStage: '#101815',
+    characterNear: '#EEF3F1',
+    characterFar: '#4E5E56',
+    characterGlow: '#3DD9A4',
+    characterGround: '#1F2926',
   },
 };
 
