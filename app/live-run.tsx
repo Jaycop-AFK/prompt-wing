@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
-import { formatDuration, formatPace } from '@/components/format';
+import { formatCadence, formatDuration, formatPace } from '@/components/format';
 import { buildSessionTarget } from '@/components/session-target/copy';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { describeSessionTarget, type SessionTarget } from '@/core/coach';
+import { useCadenceSensor } from '@/hooks/use-cadence-sensor';
 import { useTheme } from '@/hooks/use-theme';
 import { useLiveRunTracker } from '@/hooks/use-live-run-tracker';
 
@@ -40,6 +41,18 @@ export default function LiveRunScreen() {
   // เพิ่มสถานะใหม่ในอนาคตจะได้แก้น้อยจุดกว่า
   const isTracking = tracker.status === 'running' || tracker.status === 'paused';
   const isRunning = tracker.status === 'running';
+
+  // ติดตามเฉพาะตอนวิ่งจริง หยุดตอนหยุดชั่วคราวเหมือนที่ GPS หยุด ประหยัดแบตเตอรี่และเลี่ยงนับก้าว
+  // ปลอมตอนยืนนิ่ง ดูข้อจำกัดเรื่องความแม่นยำเต็ม ๆ ใน hooks/use-cadence-sensor.ts
+  // ต้องเช็ค !finished ด้วย เพราะกดจบการวิ่งโดยไม่หยุดชั่วคราวก่อนจะไม่ทำให้ tracker.status
+  // หลุดจาก 'running' (ดู useLiveRunTracker.finish) เซนเซอร์จะยังอ่านต่อเบื้องหลังหน้าจอสรุปถ้าไม่กันเอง
+  const cadence = useCadenceSensor(isRunning && !finished);
+  const cadenceValue =
+    cadence.status === 'unavailable'
+      ? 'ไม่มีเซนเซอร์'
+      : cadence.cadenceSpm === null
+        ? '—'
+        : formatCadence(cadence.cadenceSpm);
 
   // กันหน้าจอดับระหว่างวิ่งหรือหยุดชั่วคราวเท่านั้น เพราะ GPS หยุดเก็บทันทีที่หน้าจอดับ
   // (ข้อจำกัดของ Expo Go ตาม ADR 0002) ไม่ต้องกันหน้าจอดับตอนยังไม่เริ่มหรือตอนดูสรุปแล้ว
@@ -234,7 +247,10 @@ export default function LiveRunScreen() {
             label="pace เฉลี่ย"
             value={tracker.paceSecPerKm === null ? '—' : `${formatPace(tracker.paceSecPerKm)} /กม.`}
           />
+        </View>
+        <View style={styles.statsRow}>
           <SummaryStat label="ชีพจร (ตัวอย่าง)" value={`${mockHeartRate} bpm`} />
+          <SummaryStat label="cadence (ประมาณ)" value={cadenceValue} />
         </View>
 
         {!isTracking ? (

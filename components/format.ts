@@ -21,3 +21,8 @@ export function formatDuration(totalSeconds: number): string {
   const seconds = whole % 60;
   return [hours, minutes, seconds].map((n) => String(n).padStart(2, '0')).join(':');
 }
+
+/** จัดรูป cadence ให้เป็น "ก้าว/นาที" ปัดเป็นจำนวนเต็ม เช่น 172.4 -> "172 ก้าว/นาที" */
+export function formatCadence(cadenceSpm: number): string {
+  return `${Math.round(cadenceSpm)} ก้าว/นาที`;
+}
