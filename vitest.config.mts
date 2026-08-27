@@ -12,7 +12,7 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('.', import.meta.url)) },
   },
   test: {
-    include: ['core/**/*.test.ts', 'components/**/*.test.ts'],
+    include: ['core/**/*.test.ts', 'components/**/*.test.ts', 'services/**/*.test.ts'],
     environment: 'node',
   },
 });

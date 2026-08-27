@@ -29,10 +29,3 @@ export const KIND_CONFIG: Record<Kind, KindConfig> = {
 };
 
 export { buildSessionTarget };
-
-/** จัดรูปวินาทีต่อกิโลเมตรให้เป็น "นาที:วินาที" เช่น 450 -> "7:30" */
-export function formatPace(secPerKm: number): string {
-  const minutes = Math.floor(secPerKm / 60);
-  const seconds = Math.round(secPerKm % 60);
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}

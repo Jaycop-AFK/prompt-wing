@@ -1,12 +1,13 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { levelColors } from '@/components/clearance/colors';
 import { LEVEL_LABEL, reasonSentence } from '@/components/clearance/copy';
-import { buildSessionTarget, formatPace, KIND_CONFIG, KIND_LABEL, KIND_ORDER } from '@/components/session-target/copy';
+import { formatPace } from '@/components/format';
+import { buildSessionTarget, KIND_CONFIG, KIND_LABEL, KIND_ORDER } from '@/components/session-target/copy';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ComingSoon } from '@/components/ui/coming-soon';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
@@ -23,6 +24,7 @@ import { useTodayConditions } from '@/hooks/use-today-conditions';
 type Kind = SessionTarget['kind'];
 
 export default function RunScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const { clearance } = useTodayConditions();
 
@@ -173,9 +175,15 @@ export default function RunScreen() {
         </View>
       </Card>
 
-      <ComingSoon ticket="11">
-        หน้าวิ่งจริง พร้อม GPS แผนที่ pace สด และปุ่มล็อกหน้าจอ
-      </ComingSoon>
+      <Button
+        label="เริ่มวิ่ง"
+        onPress={() =>
+          router.push({
+            pathname: '/live-run',
+            params: { targetKind: effectiveTarget.kind, targetMagnitude: String(magnitudeOf(effectiveTarget)) },
+          })
+        }
+      />
     </Screen>
   );
 }
