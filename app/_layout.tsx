@@ -29,6 +29,7 @@ function RootNavigator() {
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="weather" />
       </Stack>
       <StatusBar style={dark ? 'light' : 'dark'} />
     </>

@@ -38,6 +38,14 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "พร้อมวิ่งใช้ตำแหน่งของคุณเพื่อบอกสภาพอากาศและฝุ่นตรงที่คุณอยู่ และหาที่วิ่งใกล้ตัว",
+          "locationWhenInUsePermission": "พร้อมวิ่งใช้ตำแหน่งของคุณเพื่อบอกสภาพอากาศและฝุ่นตรงที่คุณอยู่ และหาที่วิ่งใกล้ตัว",
+          "isAndroidBackgroundLocationEnabled": false
+        }
       ]
     ],
     "experiments": {

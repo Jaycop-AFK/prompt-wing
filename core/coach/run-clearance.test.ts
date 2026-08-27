@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateRunClearance } from './run-clearance';
+import { evaluateRunClearance, gradeHourlyClearance } from './run-clearance';
 import type { HourlyConditions } from './types';
 
 const HOUR = 60 * 60 * 1000;
@@ -27,13 +27,15 @@ const goodDay = () => Array.from({ length: 24 }, (_, h) => goodHour(h));
 const dayWith = (h: number, overrides: Partial<HourlyConditions>) =>
   goodDay().map((hour, i) => (i === h ? { ...hour, ...overrides } : hour));
 
-/** พระอาทิตย์ตกสองทุ่มตรง ไกลจากชั่วโมงที่เทสต์ส่วนใหญ่ใช้ */
+/** พระอาทิตย์ขึ้นตีหก และตกสองทุ่ม ไกลจากชั่วโมงที่เทสต์ส่วนใหญ่ใช้ */
+const EARLY_SUNRISE = at(6);
 const LATE_SUNSET = at(20);
 
 describe('evaluateRunClearance — เกณฑ์สีแดง', () => {
   it('แดงเมื่ออุณหภูมิที่รู้สึกได้ถึง 41 องศา', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 41 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -45,6 +47,7 @@ describe('evaluateRunClearance — เกณฑ์สีแดง', () => {
   it('แดงเมื่อ PM2.5 ถึง 37.5 ซึ่งเป็นค่ามาตรฐาน 24 ชั่วโมงของไทย', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { pm25: 37.5 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -56,6 +59,7 @@ describe('evaluateRunClearance — เกณฑ์สีแดง', () => {
   it('แดงเมื่อมีพายุฝนฟ้าคะนอง แม้อากาศอย่างอื่นจะดี', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { thunderstorm: true }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -69,6 +73,7 @@ describe('evaluateRunClearance — เกณฑ์สีเหลือง', () 
   it('เหลืองเมื่ออุณหภูมิที่รู้สึกได้ถึง 35 องศา', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 35 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -80,6 +85,7 @@ describe('evaluateRunClearance — เกณฑ์สีเหลือง', () 
   it('เหลืองเมื่อ PM2.5 ถึง 25', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { pm25: 25 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -91,6 +97,7 @@ describe('evaluateRunClearance — เกณฑ์สีเหลือง', () 
   it('เหลืองเมื่อ UV ถึง 8', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { uvIndex: 8 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -102,6 +109,7 @@ describe('evaluateRunClearance — เกณฑ์สีเหลือง', () 
   it('เหลืองเมื่อเลยเวลาพระอาทิตย์ตกไปแล้ว แม้อากาศจะดีทุกอย่าง', () => {
     const result = evaluateRunClearance({
       hours: goodDay(),
+      sunrise: EARLY_SUNRISE,
       sunset: at(18) + 40 * 60 * 1000,
       now: at(19),
     });
@@ -115,6 +123,7 @@ describe('evaluateRunClearance — สีเขียว', () => {
   it('เขียวเมื่อต่ำกว่าเกณฑ์เหลืองทุกตัวและยังไม่ถึงเวลาพระอาทิตย์ตก', () => {
     const result = evaluateRunClearance({
       hours: goodDay(),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -128,11 +137,13 @@ describe('evaluateRunClearance — ค่าตรงเส้นแบ่งพ
   it('อุณหภูมิ 34.9 ยังเขียว แต่ 35 เป็นเหลือง', () => {
     const below = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 34.9 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
     const boundary = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 35 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -144,11 +155,13 @@ describe('evaluateRunClearance — ค่าตรงเส้นแบ่งพ
   it('อุณหภูมิ 40.9 ยังเหลือง แต่ 41 เป็นแดง', () => {
     const below = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 40.9 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
     const boundary = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 41 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -160,11 +173,13 @@ describe('evaluateRunClearance — ค่าตรงเส้นแบ่งพ
   it('UV 7.9 ยังเขียว แต่ 8 เป็นเหลือง', () => {
     const below = evaluateRunClearance({
       hours: dayWith(6, { uvIndex: 7.9 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
     const boundary = evaluateRunClearance({
       hours: dayWith(6, { uvIndex: 8 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -177,7 +192,8 @@ describe('evaluateRunClearance — ค่าตรงเส้นแบ่งพ
     const levelAt = (pm25: number) =>
       evaluateRunClearance({
         hours: dayWith(6, { pm25 }),
-        sunset: LATE_SUNSET,
+        sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET,
         now: at(6),
       }).level;
 
@@ -192,6 +208,7 @@ describe('evaluateRunClearance — ตัวที่แย่ที่สุด
   it('อากาศเย็นสบายไม่ชดเชย PM2.5 ที่พุ่ง', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 22, uvIndex: 0, pm25: 60 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -203,6 +220,7 @@ describe('evaluateRunClearance — ตัวที่แย่ที่สุด
   it('รายงานทุกปัจจัยที่ถึงเกณฑ์ของระดับที่ตัดสิน ไม่ใช่แค่ตัวแรก', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 42, pm25: 90 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -214,6 +232,7 @@ describe('evaluateRunClearance — ตัวที่แย่ที่สุด
   it('ไม่รายงานปัจจัยระดับเหลืองเมื่อผลรวมเป็นแดง', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { apparentTemperature: 42, uvIndex: 9 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -227,6 +246,7 @@ describe('evaluateRunClearance — ไม่มีค่า PM2.5', () => {
   it('ประเมินจากปัจจัยที่เหลือได้ และบอกว่าไม่มีข้อมูล PM2.5', () => {
     const result = evaluateRunClearance({
       hours: dayWith(6, { pm25: null }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -239,6 +259,7 @@ describe('evaluateRunClearance — ไม่มีค่า PM2.5', () => {
   it('ไม่มีค่า PM2.5 ต้องไม่ถูกนับเป็นค่าศูนย์หรือค่าที่แย่', () => {
     const unknown = evaluateRunClearance({
       hours: dayWith(6, { pm25: null, apparentTemperature: 36 }),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -250,6 +271,7 @@ describe('evaluateRunClearance — ไม่มีค่า PM2.5', () => {
   it('บอกว่ามีข้อมูล PM2.5 เมื่อมีค่าจริง', () => {
     const result = evaluateRunClearance({
       hours: goodDay(),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(6),
     });
@@ -261,7 +283,8 @@ describe('evaluateRunClearance — ไม่มีค่า PM2.5', () => {
 describe('evaluateRunClearance — ClearWindow', () => {
   it('คืน null เมื่อไม่มีชั่วโมงเขียวเหลืออยู่เลย', () => {
     const hours = goodDay().map((hour) => ({ ...hour, pm25: 80 }));
-    const result = evaluateRunClearance({ hours, sunset: LATE_SUNSET, now: at(6) });
+    const result = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now: at(6) });
 
     expect(result.clearWindow).toBeNull();
   });
@@ -274,7 +297,8 @@ describe('evaluateRunClearance — ClearWindow', () => {
       return isShortWindow || isLongWindow ? hour : { ...hour, apparentTemperature: 36 };
     });
 
-    const result = evaluateRunClearance({ hours, sunset: LATE_SUNSET, now: at(5) });
+    const result = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now: at(5) });
 
     expect(result.clearWindow).toEqual({ start: at(16), end: at(20) });
   });
@@ -287,7 +311,8 @@ describe('evaluateRunClearance — ClearWindow', () => {
       return isMorning || isEvening ? hour : { ...hour, apparentTemperature: 36 };
     });
 
-    const result = evaluateRunClearance({ hours, sunset: LATE_SUNSET, now: at(12) });
+    const result = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now: at(12) });
 
     expect(result.clearWindow).toEqual({ start: at(17), end: at(19) });
   });
@@ -298,7 +323,8 @@ describe('evaluateRunClearance — ClearWindow', () => {
     );
     const now = at(6) + 30 * 60 * 1000;
 
-    const result = evaluateRunClearance({ hours, sunset: LATE_SUNSET, now });
+    const result = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now });
 
     expect(result.clearWindow).toEqual({ start: now, end: at(9) });
   });
@@ -309,7 +335,7 @@ describe('evaluateRunClearance — ClearWindow', () => {
       h >= 15 ? hour : { ...hour, apparentTemperature: 36 }
     );
 
-    const result = evaluateRunClearance({ hours, sunset, now: at(14) });
+    const result = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE, sunset, now: at(14) });
 
     expect(result.clearWindow).toEqual({ start: at(15), end: sunset });
   });
@@ -319,7 +345,8 @@ describe('evaluateRunClearance — ClearWindow', () => {
       h >= 16 ? hour : { ...hour, apparentTemperature: 42 }
     );
 
-    const result = evaluateRunClearance({ hours, sunset: LATE_SUNSET, now: at(9) });
+    const result = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now: at(9) });
 
     expect(result.level).toBe('red');
     expect(result.clearWindow).toEqual({ start: at(16), end: at(20) });
@@ -330,6 +357,7 @@ describe('evaluateRunClearance — ข้อมูลไม่ครบ', () => 
   it('คืนสีเหลืองเมื่อไม่มีข้อมูลของชั่วโมงปัจจุบัน แทนที่จะเดาว่าอากาศดี', () => {
     const result = evaluateRunClearance({
       hours: goodDay().slice(0, 4),
+      sunrise: EARLY_SUNRISE,
       sunset: LATE_SUNSET,
       now: at(10),
     });
@@ -339,9 +367,100 @@ describe('evaluateRunClearance — ข้อมูลไม่ครบ', () => 
   });
 
   it('ไม่พังเมื่อไม่มีข้อมูลรายชั่วโมงเลย', () => {
-    const result = evaluateRunClearance({ hours: [], sunset: LATE_SUNSET, now: at(10) });
+    const result = evaluateRunClearance({ hours: [], sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now: at(10) });
 
     expect(result.level).toBe('yellow');
     expect(result.clearWindow).toBeNull();
+  });
+});
+
+describe('gradeHourlyClearance — แถบเวลาทั้งวัน', () => {
+  it('คืนผลหนึ่งรายการต่อหนึ่งชั่วโมง เรียงตามลำดับเดิม', () => {
+    const hours = goodDay();
+    const graded = gradeHourlyClearance(hours, EARLY_SUNRISE, LATE_SUNSET);
+
+    expect(graded).toHaveLength(24);
+    expect(graded.map((entry) => entry.at)).toEqual(hours.map((hour) => hour.at));
+  });
+
+  it('ให้ระดับของแต่ละชั่วโมงอิสระจากกัน ไม่ใช่ระดับของทั้งวัน', () => {
+    const hours = goodDay().map((hour, h) =>
+      h === 13 ? { ...hour, apparentTemperature: 42 } : hour
+    );
+
+    const graded = gradeHourlyClearance(hours, EARLY_SUNRISE, LATE_SUNSET);
+
+    expect(graded[13].level).toBe('red');
+    expect(graded[13].factors).toEqual(['heat']);
+    expect(graded[12].level).toBe('green');
+    expect(graded[14].level).toBe('green');
+  });
+
+  it('ชั่วโมงที่เริ่มหลังพระอาทิตย์ตกเป็นเหลืองด้วยปัจจัยฟ้ามืด', () => {
+    const sunset = at(18) + 40 * 60 * 1000;
+    const graded = gradeHourlyClearance(goodDay(), EARLY_SUNRISE, sunset);
+
+    expect(graded[18].level).toBe('green');
+    expect(graded[19].level).toBe('yellow');
+    expect(graded[19].factors).toEqual(['dark']);
+  });
+
+  it('ให้ระดับตรงกับที่ evaluateRunClearance ตัดสินสำหรับชั่วโมงเดียวกัน', () => {
+    const hours = dayWith(9, { pm25: 40 });
+    const graded = gradeHourlyClearance(hours, EARLY_SUNRISE, LATE_SUNSET);
+    const evaluated = evaluateRunClearance({ hours, sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET, now: at(9) });
+
+    expect(graded[9].level).toBe(evaluated.level);
+    expect(graded[9].factors).toEqual(evaluated.decidedBy);
+  });
+});
+
+describe('ฟ้ามืดก่อนพระอาทิตย์ขึ้น', () => {
+  it('เหลืองเมื่อยังไม่ถึงเวลาพระอาทิตย์ขึ้น แม้อากาศจะดีทุกอย่าง', () => {
+    const result = evaluateRunClearance({
+      hours: goodDay(),
+      sunrise: at(6) + 29 * 60 * 1000,
+      sunset: LATE_SUNSET,
+      now: at(4),
+    });
+
+    expect(result.level).toBe('yellow');
+    expect(result.decidedBy).toEqual(['dark']);
+  });
+
+  it('ชั่วโมงที่จบก่อนพระอาทิตย์ขึ้นเป็นเหลืองด้วยปัจจัยฟ้ามืด', () => {
+    const sunrise = at(6) + 29 * 60 * 1000;
+    const graded = gradeHourlyClearance(goodDay(), sunrise, LATE_SUNSET);
+
+    expect(graded[3].level).toBe('yellow');
+    expect(graded[3].factors).toEqual(['dark']);
+    expect(graded[5].level).toBe('yellow');
+    expect(graded[6].level).toBe('green');
+  });
+
+  it('ไม่แนะนำให้วิ่งตอนตีสองเพียงเพราะอากาศเย็นและฝุ่นน้อย', () => {
+    const sunrise = at(6) + 29 * 60 * 1000;
+    const result = evaluateRunClearance({
+      hours: goodDay(),
+      sunrise,
+      sunset: LATE_SUNSET,
+      now: at(2),
+    });
+
+    expect(result.clearWindow).not.toBeNull();
+    expect(result.clearWindow!.start).toBe(sunrise);
+  });
+
+  it('ตัดหัวช่วงด้วยเวลาพระอาทิตย์ขึ้นเมื่อขึ้นกลางชั่วโมง', () => {
+    const sunrise = at(6) + 29 * 60 * 1000;
+    const hours = goodDay().map((hour, h) =>
+      h >= 10 ? { ...hour, apparentTemperature: 36 } : hour
+    );
+
+    const result = evaluateRunClearance({ hours, sunrise, sunset: LATE_SUNSET, now: at(0) });
+
+    expect(result.clearWindow).toEqual({ start: sunrise, end: at(10) });
   });
 });

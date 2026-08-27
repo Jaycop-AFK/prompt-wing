@@ -33,6 +33,14 @@ export interface HourlyConditions {
   thunderstorm: boolean;
 }
 
+/** ระดับของหนึ่งชั่วโมง ใช้ระบายแถบเวลาทั้งวัน */
+export interface HourClearance {
+  at: EpochMillis;
+  level: ClearanceLevel;
+  /** ปัจจัยที่ตัดสินชั่วโมงนี้ ว่างเปล่าเมื่อเป็นสีเขียว */
+  factors: ClearanceFactor[];
+}
+
 /** ช่วงเวลาที่ควรวิ่ง */
 export interface ClearWindow {
   start: EpochMillis;
@@ -53,6 +61,8 @@ export interface RunClearance {
 export interface EvaluateRunClearanceInput {
   /** ค่ารายชั่วโมงของวันนี้ ต้องเรียงจากเช้าไปเย็น */
   hours: HourlyConditions[];
+  /** เวลาพระอาทิตย์ขึ้นของวันนี้ */
+  sunrise: EpochMillis;
   /** เวลาพระอาทิตย์ตกของวันนี้ */
   sunset: EpochMillis;
   /** เวลาปัจจุบัน */
