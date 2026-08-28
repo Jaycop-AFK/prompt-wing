@@ -5,17 +5,21 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
-import { formatCadence, formatDuration, formatPace } from '@/components/format';
+import { formatCadence, formatDistance, formatDuration, formatPace } from '@/components/format';
 import { buildSessionTarget } from '@/components/session-target/copy';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
+import { SummaryStat } from '@/components/ui/summary-stat';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
-import { describeSessionTarget, type SessionTarget } from '@/core/coach';
+import { caloriesFromDistance, describeSessionTarget, type SessionTarget } from '@/core/coach';
 import { useCadenceSensor } from '@/hooks/use-cadence-sensor';
 import { useTheme } from '@/hooks/use-theme';
 import { useLiveRunTracker } from '@/hooks/use-live-run-tracker';
+import { evaluateSessionFormScore } from '@/services/form-samples';
+import { computeSplits } from '@/services/geo';
+import { saveSession } from '@/storage/session-storage';
 
 const HOLD_TO_UNLOCK_MS = 900;
 const MAP_DELTA = 0.006;
@@ -28,7 +32,7 @@ export default function LiveRunScreen() {
 
   const [locked, setLocked] = useState(false);
   const [holding, setHolding] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [mockHeartRate, setMockHeartRate] = useState(140);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -43,10 +47,10 @@ export default function LiveRunScreen() {
   const isRunning = tracker.status === 'running';
 
   // ติดตามเฉพาะตอนวิ่งจริง หยุดตอนหยุดชั่วคราวเหมือนที่ GPS หยุด ประหยัดแบตเตอรี่และเลี่ยงนับก้าว
-  // ปลอมตอนยืนนิ่ง ดูข้อจำกัดเรื่องความแม่นยำเต็ม ๆ ใน hooks/use-cadence-sensor.ts
-  // ต้องเช็ค !finished ด้วย เพราะกดจบการวิ่งโดยไม่หยุดชั่วคราวก่อนจะไม่ทำให้ tracker.status
-  // หลุดจาก 'running' (ดู useLiveRunTracker.finish) เซนเซอร์จะยังอ่านต่อเบื้องหลังหน้าจอสรุปถ้าไม่กันเอง
-  const cadence = useCadenceSensor(isRunning && !finished);
+  // ปลอมตอนยืนนิ่ง ดูข้อจำกัดเรื่องความแม่นยำเต็ม ๆ ใน hooks/use-cadence-sensor.ts จบการวิ่งแล้วจอนี้
+  // จะ navigate ออกไปเสมอ (ดู handleFinish) ทำให้ effect ของ hook นี้ถูกล้างไปเองตอน unmount
+  // ไม่ต้องกันเป็นพิเศษระหว่างช่วงกำลังบันทึกสั้น ๆ ก่อนหน้านั้น
+  const cadence = useCadenceSensor(isRunning);
   const cadenceValue =
     cadence.status === 'unavailable'
       ? 'ไม่มีเซนเซอร์'
@@ -80,9 +84,32 @@ export default function LiveRunScreen() {
       {
         text: 'จบการวิ่ง',
         style: 'destructive',
-        onPress: () => {
-          tracker.finish();
-          setFinished(true);
+        onPress: async () => {
+          // ใช้ค่าที่ finish() คืนมาตรง ๆ ไม่ใช่ tracker.elapsedSeconds เพราะ flushRunningClock
+          // ภายในอัปเดต state แบบ async ยังไม่เห็นผลใน closure นี้ทัน อ่านต่อจาก state จะได้ค่าที่
+          // ค้างช้ากว่าความจริงได้ถึงหนึ่งวินาที ซึ่งจะถูกบันทึกลงเครื่องถาวรผิดไปเลย
+          const elapsedSeconds = tracker.finish();
+          setSaving(true);
+
+          try {
+            const distanceKm = tracker.distanceKm;
+            const id = await saveSession({
+              finishedAt: Date.now(),
+              distanceKm,
+              elapsedSeconds,
+              paceSecPerKm: distanceKm > 0 ? elapsedSeconds / distanceKm : null,
+              calories: caloriesFromDistance(distanceKm),
+              formScore: evaluateSessionFormScore(tracker.points, cadence.samples),
+              splits: computeSplits(tracker.points),
+              route: tracker.points,
+            });
+            router.replace({ pathname: '/run-summary', params: { id: String(id) } });
+          } catch {
+            // การเขียนลงเครื่องต้องเกิดก่อนเสมอ (ดู ADR 0003) ถ้าล้มเหลวต้องให้ผู้ใช้ลองใหม่ได้
+            // ไม่ใช่ค้างที่หน้าจอ "กำลังบันทึก" ตลอดไปโดยไม่บอกอะไรเลย
+            setSaving(false);
+            Alert.alert('บันทึกไม่สำเร็จ', 'ลองกดจบการวิ่งอีกครั้ง');
+          }
         },
       },
     ]);
@@ -137,26 +164,15 @@ export default function LiveRunScreen() {
     );
   }
 
-  if (finished) {
+  if (saving) {
     return (
-      <Screen title="สรุปการวิ่ง" back>
-        <Card>
-          <AppText variant="title" weight="bold">
-            จบการวิ่งแล้ว
-          </AppText>
-          <View style={styles.summaryGrid}>
-            <SummaryStat label="ระยะทาง" value={`${tracker.distanceKm.toFixed(2)} กม.`} />
-            <SummaryStat label="เวลา" value={formatDuration(tracker.elapsedSeconds)} />
-            <SummaryStat
-              label="pace เฉลี่ย"
-              value={tracker.paceSecPerKm === null ? '—' : `${formatPace(tracker.paceSecPerKm)} /กม.`}
-            />
-          </View>
+      <Screen title="วิ่ง" scroll={false}>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.brand} />
           <AppText variant="small" tone="muted">
-            คะแนนฟอร์มการวิ่งและการบันทึกลงประวัติจะมาในตั๋วถัดไป ตอนนี้ยังไม่ได้บันทึกการวิ่งครั้งนี้ไว้
+            กำลังบันทึกการวิ่ง
           </AppText>
-          <Button label="กลับหน้าหลัก" onPress={() => router.dismissTo('/(tabs)')} />
-        </Card>
+        </View>
       </Screen>
     );
   }
@@ -177,7 +193,7 @@ export default function LiveRunScreen() {
 
           <View style={styles.statsRow}>
             <SummaryStat label="เวลา" value={formatDuration(tracker.elapsedSeconds)} />
-            <SummaryStat label="ระยะทาง" value={`${tracker.distanceKm.toFixed(2)} กม.`} />
+            <SummaryStat label="ระยะทาง" value={formatDistance(tracker.distanceKm)} />
           </View>
 
           <Pressable
@@ -237,12 +253,12 @@ export default function LiveRunScreen() {
         {target ? (
           <AppText variant="small" tone="muted" align="center">
             เป้าหมายรอบนี้ {describeSessionTarget(target)}
-            {target.kind === 'distance' ? ` · ไปแล้ว ${tracker.distanceKm.toFixed(2)} กม.` : ''}
+            {target.kind === 'distance' ? ` · ไปแล้ว ${formatDistance(tracker.distanceKm)}` : ''}
           </AppText>
         ) : null}
 
         <View style={styles.statsRow}>
-          <SummaryStat label="ระยะทาง" value={`${tracker.distanceKm.toFixed(2)} กม.`} />
+          <SummaryStat label="ระยะทาง" value={formatDistance(tracker.distanceKm)} />
           <SummaryStat
             label="pace เฉลี่ย"
             value={tracker.paceSecPerKm === null ? '—' : `${formatPace(tracker.paceSecPerKm)} /กม.`}
@@ -283,27 +299,12 @@ export default function LiveRunScreen() {
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.summaryStat}>
-      <AppText variant="caption" tone="muted">
-        {label}
-      </AppText>
-      <AppText variant="heading" weight="bold">
-        {value}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   body: { flex: 1, padding: spacing.lg, gap: spacing.md },
   mapWrap: { height: 200, borderRadius: radius.lg, overflow: 'hidden' },
   map: { flex: 1 },
   statsRow: { flexDirection: 'row' },
-  summaryStat: { flex: 1, gap: 2 },
-  summaryGrid: { flexDirection: 'row' },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',

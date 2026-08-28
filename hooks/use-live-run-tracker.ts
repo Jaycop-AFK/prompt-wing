@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { trackDistanceKm, type Coordinates } from '@/services/geo';
+import { trackDistanceKm, type TrackPoint } from '@/services/geo';
 
 /**
  * สถานะของการติดตามการวิ่งจริง
@@ -19,7 +19,7 @@ const CLOCK_TICK_MS = 1000;
 
 export interface LiveRunState {
   status: TrackerStatus;
-  points: Coordinates[];
+  points: TrackPoint[];
   distanceKm: number;
   elapsedSeconds: number;
   /** วินาทีต่อกิโลเมตร เฉลี่ยตั้งแต่เริ่มวิ่ง null เมื่อยังไม่มีระยะทางให้คำนวณ */
@@ -35,7 +35,7 @@ export interface LiveRunState {
  */
 export function useLiveRunTracker() {
   const [status, setStatus] = useState<TrackerStatus>('requesting');
-  const [points, setPoints] = useState<Coordinates[]>([]);
+  const [points, setPoints] = useState<TrackPoint[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
@@ -83,7 +83,11 @@ export function useLiveRunTracker() {
       (location) => {
         setPoints((previous) => [
           ...previous,
-          { latitude: location.coords.latitude, longitude: location.coords.longitude },
+          {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            at: location.timestamp,
+          },
         ]);
       }
     );
@@ -150,9 +154,14 @@ export function useLiveRunTracker() {
     await startWatching();
   }, [status, startWatching]);
 
+  /** คืนวินาทีที่วิ่งจริงแบบแม่นยำ ณ ตอนนี้ (ไม่ใช่ elapsedSeconds จาก state) เพราะ flushRunningClock
+   * อัปเดต state ผ่าน setElapsedSeconds ซึ่งเป็น async จะยังไม่เห็นผลใน closure เดียวกันที่เรียก
+   * finish() อยู่ ผู้เรียกที่ต้องใช้เวลาที่แม่นยำทันที (เช่นตอนบันทึกผลวิ่งลงเครื่อง) ต้องใช้ค่าที่
+   * คืนมานี้ ไม่ใช่อ่าน tracker.elapsedSeconds ต่อจากนี้ในซิงโครนัสเดียวกัน */
   const finish = useCallback(() => {
     flushRunningClock();
     stopWatching();
+    return accumulatedSecondsRef.current;
   }, [stopWatching]);
 
   const distanceKm = trackDistanceKm(points);

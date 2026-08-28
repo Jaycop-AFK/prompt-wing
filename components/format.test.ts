@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatDuration, formatPace } from './format';
+import { formatCadence, formatDistance, formatDuration, formatPace } from './format';
 
 describe('formatPace', () => {
   it('จัดรูปเป็นนาที:วินาที โดยเติมศูนย์หน้าวินาทีที่หลักเดียว', () => {
@@ -25,5 +25,23 @@ describe('formatDuration', () => {
 
   it('ค่าติดลบไม่ทำให้พัง คืนศูนย์แทน', () => {
     expect(formatDuration(-5)).toBe('00:00:00');
+  });
+});
+
+describe('formatCadence', () => {
+  it('ปัดเป็นจำนวนเต็มและเติมหน่วยก้าว/นาที', () => {
+    expect(formatCadence(172.4)).toBe('172 ก้าว/นาที');
+    expect(formatCadence(172.6)).toBe('173 ก้าว/นาที');
+  });
+});
+
+describe('formatDistance', () => {
+  it('จัดรูปทศนิยมสองตำแหน่งเสมอและเติมหน่วย กม.', () => {
+    expect(formatDistance(5.2)).toBe('5.20 กม.');
+    expect(formatDistance(0)).toBe('0.00 กม.');
+  });
+
+  it('ปัดทศนิยมตำแหน่งที่สาม ไม่ตัดทิ้งเฉย ๆ', () => {
+    expect(formatDistance(5.126)).toBe('5.13 กม.');
   });
 });

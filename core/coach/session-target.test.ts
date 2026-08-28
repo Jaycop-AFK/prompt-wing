@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  caloriesFromDistance,
   describeSessionTarget,
   estimateSessionSummary,
   magnitudeOf,
@@ -109,5 +110,21 @@ describe('estimateSessionSummary — pace แนะนำช้าลงวั�
     const red = estimateSessionSummary(DISTANCE, 'red');
 
     expect(red.recommendedPaceSecPerKm).toBe(green.recommendedPaceSecPerKm);
+  });
+});
+
+describe('caloriesFromDistance', () => {
+  it('ระยะทางเป็นศูนย์ แคลอรีเป็นศูนย์', () => {
+    expect(caloriesFromDistance(0)).toBe(0);
+  });
+
+  it('ใช้อัตราเดียวกับ estimateSessionSummary เพื่อไม่ให้ตัวเลขก่อนวิ่งกับหลังวิ่งขัดกันเอง', () => {
+    const km = 5;
+    const summary = estimateSessionSummary({ kind: 'distance', km }, 'green');
+    expect(caloriesFromDistance(km)).toBe(summary.estimatedKcal);
+  });
+
+  it('ระยะทางมากขึ้น แคลอรีมากขึ้นตามสัดส่วนเดียวกันเสมอ', () => {
+    expect(caloriesFromDistance(10)).toBe(caloriesFromDistance(5) * 2);
   });
 });

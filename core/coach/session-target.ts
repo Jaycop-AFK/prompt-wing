@@ -111,3 +111,12 @@ export function estimateSessionSummary(target: SessionTarget, level: ClearanceLe
     recommendedPaceSecPerKm: paceSecPerKm,
   };
 }
+
+/**
+ * แคลอรีที่เผาผลาญจริงจากระยะทางที่วิ่งได้จริงหลังจบ Session ใช้อัตราเดียวกับตอนประมาณการก่อนวิ่ง
+ * (KCAL_PER_KM ด้านบน) เพื่อไม่ให้ตัวเลขก่อนวิ่งกับหลังวิ่งขัดกันเอง ยังไม่ปรับตามน้ำหนักจริงเหมือนกัน
+ * เพราะโปรไฟล์ (ตั๋ว 09) ยังไม่มี ถ้าตั๋ว 09 เสร็จแล้วควรอัปเดตทั้งสองฟังก์ชันนี้พร้อมกันให้รับน้ำหนักจริง
+ */
+export function caloriesFromDistance(distanceKm: number): number {
+  return Math.round(distanceKm * KCAL_PER_KM);
+}

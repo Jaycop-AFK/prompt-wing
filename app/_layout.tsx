@@ -32,6 +32,7 @@ function RootNavigator() {
         <Stack.Screen name="weather" />
         <Stack.Screen name="warmup" />
         <Stack.Screen name="live-run" />
+        <Stack.Screen name="run-summary" />
       </Stack>
       <StatusBar style={dark ? 'light' : 'dark'} />
     </>

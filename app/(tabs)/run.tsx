@@ -9,6 +9,7 @@ import { buildSessionTarget, KIND_CONFIG, KIND_LABEL, KIND_ORDER } from '@/compo
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
+import { SummaryStat } from '@/components/ui/summary-stat';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import {
@@ -169,9 +170,13 @@ export default function RunScreen() {
           สรุปก่อนวิ่ง
         </AppText>
         <View style={styles.summaryRow}>
-          <SummaryStat label="เวลาที่คาด" value={`${summary.estimatedMinutes} นาที`} />
-          <SummaryStat label="แคลอรีที่คาด" value={`${summary.estimatedKcal} แคลอรี`} />
-          <SummaryStat label="pace แนะนำ" value={`${formatPace(summary.recommendedPaceSecPerKm)} /กม.`} />
+          <SummaryStat label="เวลาที่คาด" value={`${summary.estimatedMinutes} นาที`} valueVariant="body" />
+          <SummaryStat label="แคลอรีที่คาด" value={`${summary.estimatedKcal} แคลอรี`} valueVariant="body" />
+          <SummaryStat
+            label="pace แนะนำ"
+            value={`${formatPace(summary.recommendedPaceSecPerKm)} /กม.`}
+            valueVariant="body"
+          />
         </View>
       </Card>
 
@@ -185,19 +190,6 @@ export default function RunScreen() {
         }
       />
     </Screen>
-  );
-}
-
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.summaryStat}>
-      <AppText variant="caption" tone="muted">
-        {label}
-      </AppText>
-      <AppText variant="body" weight="bold">
-        {value}
-      </AppText>
-    </View>
   );
 }
 
@@ -234,5 +226,4 @@ const styles = StyleSheet.create({
   },
   stepValue: { minWidth: 48, textAlign: 'center' },
   summaryRow: { flexDirection: 'row' },
-  summaryStat: { flex: 1, gap: 2 },
 });

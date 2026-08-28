@@ -70,8 +70,13 @@ export function useCadenceSensor(active: boolean): CadenceSensorState {
     const subscription = Accelerometer.addListener(({ x, y, z, timestamp }: AccelerometerMeasurement) => {
       // ใช้ timestamp ของตัวเซนเซอร์เอง (วินาที มาจากนาฬิกาตอนจับตัวอย่างจริงของฮาร์ดแวร์) ไม่ใช่
       // Date.now() ตอน callback มาถึงฝั่ง JS เพราะบวกความหน่วงของ bridge เพิ่มเข้าไปโดยไม่จำเป็น
-      // บนสัญญาณที่ตึงมืออยู่แล้วจากเพดานอัตราสุ่มตัวอย่าง ไม่ใช่เวลาปฏิทิน จึงเทียบข้ามอุปกรณ์ไม่ได้
-      // แต่ step-detector ใช้แค่ผลต่างระหว่างตัวอย่างต่อเนื่องกัน จึงไม่ต้องอ้างอิงเวลาจริง
+      // บนสัญญาณที่ตึงมืออยู่แล้วจากเพดานอัตราสุ่มตัวอย่าง แต่ "วินาที" นี้ไม่ใช่เวลาปฏิทิน (Unix
+      // epoch) บนแอนดรอยด์คือเวลานับจากตอนเปิดเครื่อง เทียบข้ามนาฬิกากับแหล่งอื่นในเครื่องเดียวกัน
+      // ไม่ได้เลย (เช่น timestamp ของ GPS ใน expo-location ที่เป็น Unix epoch จริง) step-detector
+      // เองใช้แค่ผลต่างระหว่างตัวอย่างต่อเนื่องกันในนาฬิกาเดียวกัน จึงไม่มีปัญหา แต่ค่าที่ปล่อยออกไป
+      // ให้ข้างนอกใช้ (samples ด้านล่าง) ต้องเป็นเวลาปฏิทินจริง เพราะ services/form-samples.ts จะเอาไป
+      // เทียบเวลากับจุด GPS ตอนประกอบ FormSample ความคลาดเคลื่อนหลักสิบ ms จาก Date.now() ไม่กระทบ
+      // เพราะจุด GPS ห่างกันเป็นวินาทีอยู่แล้ว
       const magnitude = Math.sqrt(x * x + y * y + z * z);
       const stepAt = detectorRef.current.addSample({ magnitude, at: timestamp * 1000 });
       if (stepAt === null) return;
@@ -82,7 +87,7 @@ export function useCadenceSensor(active: boolean): CadenceSensorState {
       if (estimated === null) return;
 
       setCadenceSpm(estimated);
-      setSamples((previous) => [...previous, { cadenceSpm: estimated, at: stepAt }]);
+      setSamples((previous) => [...previous, { cadenceSpm: estimated, at: Date.now() }]);
     });
 
     return () => subscription.remove();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { distanceKm, trackDistanceKm, type Coordinates } from './geo';
+import { computeSplits, distanceKm, trackDistanceKm, type Coordinates, type TrackPoint } from './geo';
 
 // กรุงเทพฯ กับเชียงใหม่ ระยะทางตรงจริงประมาณ 580-590 กม. ใช้เป็นค่าอ้างอิงตรวจสูตร haversine
 const BANGKOK: Coordinates = { latitude: 13.7563, longitude: 100.5018 };
@@ -57,5 +57,55 @@ describe('trackDistanceKm', () => {
   it('จุดที่ซ้ำตำแหน่งเดิมไม่เพิ่มระยะทาง', () => {
     const a: Coordinates = { latitude: 14.05, longitude: 101.37 };
     expect(trackDistanceKm([a, a, a])).toBe(0);
+  });
+});
+
+describe('computeSplits', () => {
+  const LAT = 14.05;
+  const LON_STEP = 0.001; // ระยะห่างจุดต่อจุดคงที่ตลอด ประมาณ 111 เมตรที่ละติจูดนี้
+  const TIME_STEP_MS = 20000;
+
+  function buildConstantPaceTrack(pointCount: number): TrackPoint[] {
+    return Array.from({ length: pointCount }, (_, i) => ({
+      latitude: LAT,
+      longitude: 101.37 + i * LON_STEP,
+      at: i * TIME_STEP_MS,
+    }));
+  }
+
+  it('ไม่มีจุดหรือมีจุดเดียว ไม่มี Split เลย', () => {
+    expect(computeSplits([])).toEqual([]);
+    expect(computeSplits([{ latitude: LAT, longitude: 101.37, at: 0 }])).toEqual([]);
+  });
+
+  it('วิ่งไม่ถึงหนึ่งกิโลเมตร ไม่มี Split เลย', () => {
+    expect(computeSplits(buildConstantPaceTrack(3))).toEqual([]);
+  });
+
+  it('กิโลเมตรถูกนับเรียงลำดับ 1, 2, 3, ... ไม่กระโดดข้าม', () => {
+    const splits = computeSplits(buildConstantPaceTrack(60));
+    expect(splits.length).toBeGreaterThanOrEqual(5);
+    splits.forEach((split, i) => expect(split.km).toBe(i + 1));
+  });
+
+  it('pace คงที่ตลอดทาง (ความเร็วเท่ากันทุกช่วง) ทุก Split ต้องได้ pace ใกล้เคียงกันมาก', () => {
+    const splits = computeSplits(buildConstantPaceTrack(60));
+    const firstPace = splits[0].paceSecPerKm;
+    for (const split of splits) {
+      expect(split.paceSecPerKm).toBeCloseTo(firstPace, 0);
+    }
+  });
+
+  it('วิ่งช้าลงครึ่งหลัง Split ท้ายต้องช้ากว่า Split ต้น', () => {
+    const half = 30;
+    const points: TrackPoint[] = [];
+    let at = 0;
+    for (let i = 0; i < 60; i++) {
+      points.push({ latitude: LAT, longitude: 101.37 + i * LON_STEP, at });
+      at += i < half ? TIME_STEP_MS : TIME_STEP_MS * 2;
+    }
+
+    const splits = computeSplits(points);
+    expect(splits[splits.length - 1].paceSecPerKm).toBeGreaterThan(splits[0].paceSecPerKm);
   });
 });

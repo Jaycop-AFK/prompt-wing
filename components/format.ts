@@ -26,3 +26,8 @@ export function formatDuration(totalSeconds: number): string {
 export function formatCadence(cadenceSpm: number): string {
   return `${Math.round(cadenceSpm)} ก้าว/นาที`;
 }
+
+/** จัดรูประยะทางให้เป็น "กม." ทศนิยมสองตำแหน่งเสมอ เช่น 5.2 -> "5.20 กม." */
+export function formatDistance(km: number): string {
+  return `${km.toFixed(2)} กม.`;
+}
