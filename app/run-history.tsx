@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { formatDistance, formatDuration, formatPace } from '@/components/format';
 import { DistanceChart } from '@/components/history/distance-chart';
+import { OBJECTIVE_LABEL } from '@/components/profile/copy';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Legend } from '@/components/ui/legend';
@@ -12,6 +13,7 @@ import { SummaryStat } from '@/components/ui/summary-stat';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { computeDailyGoal } from '@/core/coach';
+import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formTrend,
@@ -32,13 +34,6 @@ const RANGE_LABEL: Record<HistoryRange, string> = {
   month: 'เดือนนี้',
   year: 'ปีนี้',
 };
-
-/**
- * เป้าหมายระยะยาวยังไม่มีที่เก็บจริงจนกว่าตั๋ว 09 (โปรไฟล์) จะเสร็จ ระหว่างนี้ใช้ค่าเริ่มต้นนี้
- * เพื่อให้เส้นเป้าหมายในหน้านี้มีตัวเลขจริงให้เทียบ ไม่ใช่ช่องว่าง ต้องเปลี่ยนไปอ่านค่าที่ผู้ใช้
- * เลือกไว้จริงทันทีที่ตั๋ว 09 เสร็จ
- */
-const DEFAULT_OBJECTIVE = 'health' as const;
 
 const TREND_COLOR_KEY: Record<FormTrendPoint, 'clearGreen' | 'clearYellow' | 'clearRed' | 'border'> =
   {
@@ -67,6 +62,7 @@ function formatDay(at: number): string {
 export default function RunHistoryScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { profile } = useProfile();
 
   const [range, setRange] = useState<HistoryRange>('week');
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
@@ -147,7 +143,7 @@ export default function RunHistoryScreen() {
 
   const now = Date.now();
   const dailyGoal = computeDailyGoal({
-    objective: DEFAULT_OBJECTIVE,
+    objective: profile.objective,
     history: sessions.map((s) => ({ at: s.finishedAt, distanceKm: s.distanceKm })),
     now,
   });
@@ -210,9 +206,9 @@ export default function RunHistoryScreen() {
           />
         </View>
         <AppText variant="caption" tone="faint">
-          คิดจากเป้าหมายระยะยาวค่าเริ่มต้น (สุขภาพ {formatDistance(dailyGoal.distanceKm)} ต่อวัน)
-          คูณทุกวันในช่วงนี้ จึงถือว่าวิ่งทุกวันไม่มีวันพัก ตัวเลขนี้เลยสูงกว่าที่ควรตั้งจริง
-          ยังไม่ใช่ค่าที่คุณเลือกเอง จะเปลี่ยนตามที่คุณตั้งไว้จริงเมื่อหน้าโปรไฟล์เสร็จ
+          คิดจากเป้าหมายระยะยาว {OBJECTIVE_LABEL[profile.objective]} ({formatDistance(dailyGoal.distanceKm)}{' '}
+          ต่อวัน) คูณทุกวันในช่วงนี้ จึงถือว่าวิ่งทุกวันไม่มีวันพัก ตัวเลขนี้เลยสูงกว่าที่ควรตั้งจริง
+          เปลี่ยนเป้าหมายระยะยาวได้ที่หน้าโปรไฟล์
         </AppText>
       </Card>
 

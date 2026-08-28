@@ -38,12 +38,13 @@ const MONTH_LABELS = [
 ];
 
 /**
- * เที่ยงคืนของวันที่ระบุ ตามเขตเวลาของเครื่อง
+ * เที่ยงคืนของวันที่ระบุ ตามเขตเวลาของเครื่อง ส่งออกให้จออื่นใช้ร่วมกัน จะได้ไม่มีใครเขียนคณิตศาสตร์
+ * ของขอบเขตวันขึ้นมาเองอีกชุด ซึ่งเคยทำให้เกิดบั๊กเขตเวลาที่มีการปรับเวลาตามฤดูกาลมาแล้วสองจุด
  *
  * ใช้ตัวสร้าง Date จากปี/เดือน/วัน แทนการลบมิลลิวินาทีตรง ๆ เพราะการลบจะเพี้ยนในวันที่มีการ
  * ปรับเวลาตามฤดูกาล (ไทยไม่มี แต่ผู้ใช้อาจตั้งเขตเวลาอื่นไว้ และเทสต์รันบนเครื่องเขตเวลาใดก็ได้)
  */
-function startOfDay(at: number): number {
+export function startOfDay(at: number): number {
   const d = new Date(at);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
@@ -192,4 +193,12 @@ export function formTrend(sessions: readonly SessionRecord[], limit = 10): FormT
     goodCount: points.filter((p) => p === 'good').length,
     ratedCount: points.filter((p) => p !== 'notEnoughData').length,
   };
+}
+
+/** ระยะทางรวมของการวิ่งทั้งหมดที่จบในวันเดียวกับ at */
+export function distanceOnDay(sessions: readonly SessionRecord[], at: number): number {
+  const day = startOfDay(at);
+  return sessions
+    .filter((session) => startOfDay(session.finishedAt) === day)
+    .reduce((sum, session) => sum + session.distanceKm, 0);
 }

@@ -1,3 +1,4 @@
+import { kcalPerKm } from './bmi';
 import type {
   ClearanceLevel,
   ReducedSessionTarget,
@@ -74,14 +75,11 @@ export function reduceSessionTargetForClearance(
 
 /**
  * pace แนะนำพื้นฐาน 7 นาที 30 วินาทีต่อกิโลเมตร ตามค่าที่ใช้ในแบบร่างต้นฉบับ
- * ยังไม่ปรับตามน้ำหนักหรือฟอร์มของผู้ใช้แต่ละคน เพราะโปรไฟล์ (ตั๋ว 09) ยังไม่มี
+ * ยังไม่ปรับตามฟอร์มหรือความฟิตของผู้ใช้แต่ละคน ซึ่งต้องใช้ข้อมูลที่แอปนี้ยังไม่เก็บ
  */
 const BASE_PACE_SEC_PER_KM = 450;
 /** วันสีเหลืองแนะนำให้วิ่งช้าลงด้วย ไม่ใช่แค่ระยะสั้นลงอย่างเดียว */
 const YELLOW_PACE_SLOWDOWN_SEC = 30;
-/** ประมาณคร่าว ๆ สำหรับผู้ใหญ่น้ำหนักเฉลี่ย จนกว่าจะมีน้ำหนักจริงจากโปรไฟล์ */
-const KCAL_PER_KM = 60;
-
 /**
  * สรุปก่อนเริ่มวิ่ง คาดเวลาที่ใช้ แคลอรีที่เผาผลาญ และ pace ที่แนะนำ จาก SessionTarget เดียว
  *
@@ -89,8 +87,13 @@ const KCAL_PER_KM = 60;
  * ใช้ pace เดียวกันทั้งตอนแปลงเป้าหมายรอบนี้เป็นระยะทางและตอนแปลงกลับเป็นเวลา/แคลอรี เพื่อให้ตัวเลข
  * ที่ผู้ใช้ตั้งไว้ (เช่น ตั้งเวลา 30 นาที) คำนวณย้อนกลับมาได้ใกล้เคียงของเดิมเสมอ
  */
-export function estimateSessionSummary(target: SessionTarget, level: ClearanceLevel): SessionSummary {
+export function estimateSessionSummary(
+  target: SessionTarget,
+  level: ClearanceLevel,
+  weightKg: number | null = null
+): SessionSummary {
   const paceSecPerKm = BASE_PACE_SEC_PER_KM + (level === 'yellow' ? YELLOW_PACE_SLOWDOWN_SEC : 0);
+  const kcalPerKilometre = kcalPerKm(weightKg);
 
   let km: number;
   switch (target.kind) {
@@ -101,22 +104,23 @@ export function estimateSessionSummary(target: SessionTarget, level: ClearanceLe
       km = (target.minutes * 60) / paceSecPerKm;
       break;
     case 'calories':
-      km = target.kcal / KCAL_PER_KM;
+      km = target.kcal / kcalPerKilometre;
       break;
   }
 
   return {
     estimatedMinutes: Math.round((km * paceSecPerKm) / 60),
-    estimatedKcal: Math.round(km * KCAL_PER_KM),
+    estimatedKcal: Math.round(km * kcalPerKilometre),
     recommendedPaceSecPerKm: paceSecPerKm,
   };
 }
 
 /**
- * แคลอรีที่เผาผลาญจริงจากระยะทางที่วิ่งได้จริงหลังจบ Session ใช้อัตราเดียวกับตอนประมาณการก่อนวิ่ง
- * (KCAL_PER_KM ด้านบน) เพื่อไม่ให้ตัวเลขก่อนวิ่งกับหลังวิ่งขัดกันเอง ยังไม่ปรับตามน้ำหนักจริงเหมือนกัน
- * เพราะโปรไฟล์ (ตั๋ว 09) ยังไม่มี ถ้าตั๋ว 09 เสร็จแล้วควรอัปเดตทั้งสองฟังก์ชันนี้พร้อมกันให้รับน้ำหนักจริง
+ * แคลอรีที่เผาผลาญจริงจากระยะทางที่วิ่งได้จริงหลังจบ Session
+ *
+ * ใช้อัตราเดียวกับตอนประมาณการก่อนวิ่ง (kcalPerKm ใน bmi.ts) เพื่อไม่ให้ตัวเลขก่อนวิ่งกับหลังวิ่ง
+ * ขัดกันเอง ผู้ใช้ที่ยังไม่กรอกน้ำหนักจะได้อัตราเริ่มต้นเท่าเดิมกับก่อนที่จะมีหน้าโปรไฟล์
  */
-export function caloriesFromDistance(distanceKm: number): number {
-  return Math.round(distanceKm * KCAL_PER_KM);
+export function caloriesFromDistance(distanceKm: number, weightKg: number | null = null): number {
+  return Math.round(distanceKm * kcalPerKm(weightKg));
 }

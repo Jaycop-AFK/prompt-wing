@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { ProfileProvider } from '@/hooks/use-profile';
 import { ThemeProvider, useTheme } from '@/hooks/use-theme';
 
 export const unstable_settings = {
@@ -58,7 +59,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <RootNavigator />
+        <ProfileProvider>
+          <RootNavigator />
+        </ProfileProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

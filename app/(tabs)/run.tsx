@@ -19,6 +19,7 @@ import {
   reduceSessionTargetForClearance,
   type SessionTarget,
 } from '@/core/coach';
+import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import { useTodayConditions } from '@/hooks/use-today-conditions';
 
@@ -28,6 +29,7 @@ export default function RunScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { clearance } = useTodayConditions();
+  const { profile } = useProfile();
 
   // เก็บเป็น SessionTarget ก้อนเดียว ไม่แยกเป็น kind กับ magnitude สองตัวแปร
   // เพราะสองตัวแปรแยกกันมีจังหวะที่หลุดไม่ตรงกันได้ (เช่นลืมรีเซ็ต magnitude ตอนเปลี่ยน kind)
@@ -43,7 +45,7 @@ export default function RunScreen() {
   const reduction = reduceSessionTargetForClearance(rawTarget, level);
   const wasReduced = reduction.reason !== null;
   const effectiveTarget = !wasReduced || overrideConfirmed ? rawTarget : reduction.target;
-  const summary = estimateSessionSummary(effectiveTarget, level);
+  const summary = estimateSessionSummary(effectiveTarget, level, profile.weightKg);
 
   // ใบอนุญาตวิ่งเปลี่ยนได้ระหว่างที่หน้าเปิดอยู่ (ดึงข้อมูลใหม่, เวลาผ่านไป) การยืนยันขอปรับกลับ
   // ขึ้นควรผูกกับ "สถานการณ์ตอนที่กด" เท่านั้น ถ้าระดับเปลี่ยนไปจริง ให้ประเมินใหม่จากค่าดิบเสมอ

@@ -15,6 +15,7 @@ import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { caloriesFromDistance, describeSessionTarget, type SessionTarget } from '@/core/coach';
 import { useCadenceSensor } from '@/hooks/use-cadence-sensor';
+import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import { useLiveRunTracker } from '@/hooks/use-live-run-tracker';
 import { evaluateSessionFormScore } from '@/services/form-samples';
@@ -29,6 +30,7 @@ export default function LiveRunScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams<{ targetKind?: string; targetMagnitude?: string }>();
   const tracker = useLiveRunTracker();
+  const { profile } = useProfile();
 
   const [locked, setLocked] = useState(false);
   const [holding, setHolding] = useState(false);
@@ -98,7 +100,7 @@ export default function LiveRunScreen() {
               distanceKm,
               elapsedSeconds,
               paceSecPerKm: distanceKm > 0 ? elapsedSeconds / distanceKm : null,
-              calories: caloriesFromDistance(distanceKm),
+              calories: caloriesFromDistance(distanceKm, profile.weightKg),
               formScore: evaluateSessionFormScore(tracker.points, cadence.samples),
               splits: computeSplits(tracker.points),
               route: tracker.points,

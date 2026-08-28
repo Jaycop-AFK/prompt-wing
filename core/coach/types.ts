@@ -83,6 +83,21 @@ export interface DailyGoal {
   distanceKm: number;
 }
 
+/** เพศทางสรีรวิทยา ใช้ประกอบการแปลผลเท่านั้น ไม่ได้ใช้ตัดสินใจอะไรที่ต่างกันในเวอร์ชันนี้ */
+export type Sex = 'male' | 'female';
+
+/** ข้อมูลตัวผู้ใช้ที่กรอกเองในหน้าโปรไฟล์ ทุกช่องเป็นทางเลือก กรอกทีหลังได้ */
+export interface RunnerProfile {
+  weightKg: number | null;
+  heightCm: number | null;
+  age: number | null;
+  sex: Sex | null;
+  objective: Objective;
+}
+
+/** ช่วงของค่า BMI ตามเกณฑ์กรมอนามัย ดู core/coach/bmi.ts */
+export type BmiCategory = 'underweight' | 'normal' | 'overweight' | 'obese1' | 'obese2';
+
 /** ตัวอย่างหนึ่งจุดระหว่างการวิ่ง เรียงจากระยะสะสมน้อยไปมาก */
 export interface FormSample {
   /** ระยะสะสมจากจุดเริ่มวิ่ง หน่วยกิโลเมตร */

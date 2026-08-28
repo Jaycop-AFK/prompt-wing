@@ -159,3 +159,51 @@ describe('computeDailyGoal — ไม่มีประวัติได้ค�
     }
   });
 });
+
+describe('computeDailyGoal — เป้าหมายของวันนี้ต้องนิ่งตลอดวัน', () => {
+  /** เที่ยงวันของวันนี้ตามเขตเวลาเครื่อง ให้แน่ใจว่าอยู่ในวันเดียวกับ NOW เสมอ */
+  function earlierToday(): number {
+    const d = new Date(NOW);
+    d.setHours(0, 30, 0, 0);
+    return d.getTime();
+  }
+
+  it('วิ่งจบวันนี้แล้ว เป้าหมายของวันนี้ต้องไม่เปลี่ยน ไม่งั้นแถบความคืบหน้าจะถอยหลัง', () => {
+    for (const objective of OBJECTIVES) {
+      const before = computeDailyGoal({ objective, history: [], now: NOW });
+      const after = computeDailyGoal({
+        objective,
+        history: [{ at: earlierToday(), distanceKm: 5 }],
+        now: NOW,
+      });
+
+      expect(after.distanceKm).toBe(before.distanceKm);
+    }
+  });
+
+  it('วิ่งหลายครั้งในวันนี้ก็ยังไม่ขยับเป้าหมายของวันนี้', () => {
+    const history: RunHistoryEntry[] = [
+      { at: earlierToday(), distanceKm: 4 },
+      { at: earlierToday() + 60 * 60 * 1000, distanceKm: 6 },
+    ];
+
+    for (const objective of OBJECTIVES) {
+      expect(computeDailyGoal({ objective, history, now: NOW }).distanceKm).toBe(
+        computeDailyGoal({ objective, history: [], now: NOW }).distanceKm
+      );
+    }
+  });
+
+  it('การวิ่งของเมื่อวานยังมีผลกับเป้าหมายของวันนี้ตามปกติ', () => {
+    // ตัดเฉพาะของวันนี้เท่านั้น ไม่ใช่ตัดประวัติทั้งหมดทิ้ง
+    const yesterday = computeDailyGoal({
+      objective: 'endurance',
+      history: [{ at: daysAgo(1), distanceKm: 5 }],
+      now: NOW,
+    });
+
+    expect(yesterday.distanceKm).not.toBe(
+      computeDailyGoal({ objective: 'endurance', history: [], now: NOW }).distanceKm
+    );
+  });
+});

@@ -2,9 +2,9 @@ import { useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { ClearanceCard } from '@/components/clearance/clearance-card';
+import { DailyGoalCard } from '@/components/profile/daily-goal-card';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ComingSoon } from '@/components/ui/coming-soon';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -75,9 +75,7 @@ export default function HomeScreen() {
         />
       ) : null}
 
-      <ComingSoon ticket="09">
-        แถบความคืบหน้าเป้าหมายรายวัน ซึ่งเปลี่ยนตามเป้าหมายระยะยาวที่ผู้ใช้เลือกไว้
-      </ComingSoon>
+      <DailyGoalCard />
 
       <Card>
         <AppText variant="heading" weight="semibold">

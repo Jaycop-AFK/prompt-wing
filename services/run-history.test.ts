@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { daysInRange, formTrend, rangeBounds, summarizeHistory } from './run-history';
+import { daysInRange, distanceOnDay, formTrend, rangeBounds, summarizeHistory } from './run-history';
 import type { SessionRecord } from './session-record';
 
 /** 15 มิถุนายน 2026 เวลา 10:00 ตามเขตเวลาของเครื่องที่รันเทสต์ */
@@ -254,5 +254,21 @@ describe('formTrend', () => {
 
   it('ไม่มีประวัติเลย คืนค่าว่างโดยไม่พัง', () => {
     expect(formTrend([])).toEqual({ points: [], goodCount: 0, ratedCount: 0 });
+  });
+});
+
+describe('distanceOnDay', () => {
+  it('รวมเฉพาะการวิ่งที่จบในวันเดียวกัน ไม่รวมวันอื่น', () => {
+    const sessions = [
+      session({ finishedAt: daysAgo(0), distanceKm: 3 }),
+      session({ finishedAt: daysAgo(0) + 60 * 60 * 1000, distanceKm: 2, id: 2 }),
+      session({ finishedAt: daysAgo(1), distanceKm: 9, id: 3 }),
+    ];
+
+    expect(distanceOnDay(sessions, NOW)).toBe(5);
+  });
+
+  it('ไม่มีการวิ่งวันนั้นเลย ได้ศูนย์ ไม่ใช่ค่าที่ทำให้หารพัง', () => {
+    expect(distanceOnDay([], NOW)).toBe(0);
   });
 });
