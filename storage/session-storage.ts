@@ -1,23 +1,10 @@
 import * as SQLite from 'expo-sqlite';
 
-import type { FormScore } from '@/core/coach';
-import type { Split, TrackPoint } from '@/services/geo';
+import type { NewSessionRecord, SessionRecord } from '@/services/session-record';
 
-export interface SessionRecord {
-  id: number;
-  /** เวลาที่กดจบการวิ่ง หน่วย epoch ms */
-  finishedAt: number;
-  distanceKm: number;
-  elapsedSeconds: number;
-  /** null ถ้าระยะทางเป็นศูนย์ (คำนวณ pace ไม่ได้) */
-  paceSecPerKm: number | null;
-  calories: number;
-  formScore: FormScore;
-  splits: Split[];
-  route: TrackPoint[];
-}
-
-export type NewSessionRecord = Omit<SessionRecord, 'id'>;
+// ส่งต่อชนิดข้อมูลให้จอที่ import จากไฟล์นี้อยู่แล้วใช้ต่อได้เหมือนเดิม ตัวนิยามจริงอยู่ใน services/
+// เพื่อให้โมดูลที่คำนวณจากประวัติการวิ่งใช้ได้โดยไม่ต้องลาก expo-sqlite ติดไปด้วย
+export type { NewSessionRecord, SessionRecord };
 
 interface SessionRow {
   id: number;

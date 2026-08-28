@@ -6,6 +6,7 @@ import { clearWindowSentence, formatTime, LEVEL_LABEL, reasonSentence } from '@/
 import { HourlyStrip } from '@/components/clearance/hourly-strip';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Legend } from '@/components/ui/legend';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { spacing } from '@/constants/theme';
@@ -171,22 +172,9 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <AppText variant="caption" tone="muted">
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   legend: { flexDirection: 'row', gap: spacing.lg },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
   sourceHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

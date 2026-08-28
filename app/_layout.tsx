@@ -33,6 +33,7 @@ function RootNavigator() {
         <Stack.Screen name="warmup" />
         <Stack.Screen name="live-run" />
         <Stack.Screen name="run-summary" />
+        <Stack.Screen name="run-history" />
       </Stack>
       <StatusBar style={dark ? 'light' : 'dark'} />
     </>
