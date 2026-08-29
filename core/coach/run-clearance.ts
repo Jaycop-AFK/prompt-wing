@@ -1,3 +1,4 @@
+import { isDarkAt } from './daylight';
 import type {
   ClearWindow,
   ClearanceFactor,
@@ -171,7 +172,7 @@ export function evaluateRunClearance({
   now,
 }: EvaluateRunClearanceInput): RunClearance {
   const currentHour = hourAt(hours, now);
-  const { level, factors } = gradeHour(currentHour, now < sunrise || now >= sunset);
+  const { level, factors } = gradeHour(currentHour, isDarkAt(now, sunrise, sunset));
 
   return {
     level,

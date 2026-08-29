@@ -1,4 +1,11 @@
-import type { ClearWindow, ClearanceFactor, ClearanceLevel, EpochMillis } from '@/core/coach';
+import {
+  DAYLIGHT_SAFETY_MARGIN_MINUTES,
+  type ClearWindow,
+  type ClearanceFactor,
+  type ClearanceLevel,
+  type DaylightWarning,
+  type EpochMillis,
+} from '@/core/coach';
 
 /**
  * ข้อความภาษาไทยของใบอนุญาตวิ่ง
@@ -53,4 +60,41 @@ export function clearWindowSentence(window: ClearWindow | null, now: EpochMillis
 export function reasonSentence(factors: ClearanceFactor[]): string {
   if (factors.length === 0) return '';
   return factors.map((factor) => FACTOR_LABEL[factor]).join(' และ ');
+}
+
+/**
+ * ประโยคเตือนเรื่องแสง พร้อมทางเลือกที่ทำได้จริงเสมอ
+ *
+ * ต้องเสนอสิ่งที่ผู้ใช้ลงมือทำได้ตอนนี้ ไม่ใช่แค่บอกว่าเวลาไม่พอแล้วปล่อยให้คิดเอง ทางเลือกต่างกัน
+ * ตามสถานการณ์ ก่อนฟ้าสว่างมีทางเลือกที่ดีที่สุดคือรออีกไม่นาน ซึ่งไม่มีในกรณีหลังพระอาทิตย์ตก
+ *
+ * บอกระยะเผื่อเป็นตัวเลขด้วย ไม่งั้นผู้ใช้เอา "เหลืออีกกี่นาที" ไปลบกับเวลาพระอาทิตย์ตกที่แสดงคู่กัน
+ * แล้วได้ไม่ตรง ดูเหมือนแอปคำนวณผิดทั้งที่ตั้งใจเผื่อไว้
+ */
+export function daylightWarningSentence(warning: DaylightWarning, sunset: EpochMillis): string {
+  switch (warning.kind) {
+    case 'beforeSunrise':
+      return `ตอนนี้ฟ้ายังไม่สว่าง อีกราว ${warning.minutesUntilSunrise} นาทีพระอาทิตย์จะขึ้น รออีกหน่อยแล้วค่อยออกไปวิ่งจะปลอดภัยกว่า ถ้าจะวิ่งตอนนี้ควรเลือกที่วิ่งที่มีไฟส่องสว่างและใส่เสื้อสีสว่างหรือมีแถบสะท้อนแสง`;
+
+    case 'afterSunset':
+      return `ตอนนี้ฟ้ามืดแล้ว (พระอาทิตย์ตก ${formatTime(sunset)}) ถ้าจะวิ่งควรเลือกที่วิ่งที่มีไฟส่องสว่างและใส่เสื้อสีสว่างหรือมีแถบสะท้อนแสง`;
+
+    case 'notEnoughTime': {
+      const left = Math.max(0, warning.minutesLeft);
+      return `เหลือเวลาอีกราว ${left} นาทีก่อนควรวิ่งให้จบ (เผื่อไว้ ${DAYLIGHT_SAFETY_MARGIN_MINUTES} นาทีก่อนพระอาทิตย์ตก ${formatTime(sunset)}) แต่เป้าหมายรอบนี้น่าจะใช้เวลาราว ${warning.estimatedMinutes} นาที ลองลดเป้าหมายรอบนี้ลง หรือเลือกที่วิ่งที่มีไฟส่องสว่าง`;
+    }
+  }
+}
+
+/** หัวข้อสั้น ๆ ของคำเตือน ไม่ซ้ำกับประโยคเต็มด้านล่าง */
+export function daylightWarningTitle(warning: DaylightWarning): string {
+  switch (warning.kind) {
+    case 'beforeSunrise':
+      return 'ฟ้ายังไม่สว่าง';
+    case 'afterSunset':
+      return 'ฟ้ามืดแล้ว';
+    case 'notEnoughTime':
+      // เลี่ยงคำที่ฟันธง เพราะเวลาที่คาดว่าจะใช้วิ่งมาจาก pace มาตรฐาน ไม่ใช่ pace จริงของผู้ใช้คนนี้
+      return 'แสงกลางวันอาจไม่พอ';
+  }
 }

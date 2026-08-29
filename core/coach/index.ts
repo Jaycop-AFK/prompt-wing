@@ -1,5 +1,6 @@
 export * from './bmi';
 export * from './daily-goal';
+export * from './daylight';
 export * from './form-score';
 export * from './profile';
 export * from './run-clearance';

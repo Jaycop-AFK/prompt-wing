@@ -1,9 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { levelColors } from '@/components/clearance/colors';
-import { LEVEL_LABEL, reasonSentence } from '@/components/clearance/copy';
+import {
+  daylightWarningSentence,
+  daylightWarningTitle,
+  LEVEL_LABEL,
+  reasonSentence,
+} from '@/components/clearance/copy';
 import { formatPace } from '@/components/format';
 import { buildSessionTarget, KIND_CONFIG, KIND_LABEL, KIND_ORDER } from '@/components/session-target/copy';
 import { Button } from '@/components/ui/button';
@@ -15,6 +21,7 @@ import { radius, spacing } from '@/constants/theme';
 import {
   describeSessionTarget,
   estimateSessionSummary,
+  evaluateDaylightWarning,
   magnitudeOf,
   reduceSessionTargetForClearance,
   type SessionTarget,
@@ -22,13 +29,14 @@ import {
 import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import { useTodayConditions } from '@/hooks/use-today-conditions';
+import { startOfDay } from '@/services/run-history';
 
 type Kind = SessionTarget['kind'];
 
 export default function RunScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { clearance } = useTodayConditions();
+  const { clearance, conditions } = useTodayConditions();
   const { profile } = useProfile();
 
   // เก็บเป็น SessionTarget ก้อนเดียว ไม่แยกเป็น kind กับ magnitude สองตัวแปร
@@ -46,6 +54,30 @@ export default function RunScreen() {
   const wasReduced = reduction.reason !== null;
   const effectiveTarget = !wasReduced || overrideConfirmed ? rawTarget : reduction.target;
   const summary = estimateSessionSummary(effectiveTarget, level, profile.weightKg);
+
+  // เตือนเรื่องแสงกลางวันได้ต่อเมื่อรู้เวลาพระอาทิตย์ขึ้นตกจริงเท่านั้น ถ้าดึงข้อมูลอากาศไม่สำเร็จ
+  // ต้องเงียบไปเลย ไม่ใช่เดาเวลาเอาเอง เพราะคำเตือนที่อิงเวลาผิดแย่กว่าไม่เตือน
+  //
+  // ใช้เวลาปัจจุบันจริง ไม่ใช่เวลาที่ดึงข้อมูลอากาศมา เพราะคำเตือนนี้ขึ้นกับว่า "ตอนนี้" เหลือแสงเท่าไร
+  // ถ้าเปิดจอนี้ค้างไว้นาน เวลาที่ดึงข้อมูลจะเก่าจนคำเตือนหลุด ตัวเลขนี้คำนวณใหม่ทุกครั้งที่จอวาดใหม่
+  // ไม่ได้เดินเองตามวินาที ซึ่งพอสำหรับจอที่ผู้ใช้กำลังกดเลือกเป้าหมายรอบนี้อยู่
+  //
+  // แต่ต้องเช็คด้วยว่าเวลาพระอาทิตย์ตกที่ถืออยู่เป็นของวันนี้จริง เพราะ useTodayConditions ดึงข้อมูล
+  // ครั้งเดียวตอนเปิดจอ ถ้าเปิดแอปค้างข้ามคืน เวลาพระอาทิตย์ตกจะเป็นของเมื่อวาน เทียบกับเวลาตอนนี้
+  // แล้วจะขึ้นว่า "ฟ้ามืดแล้ว" ค้างตลอดเช้าวันถัดไป เงียบไว้ดีกว่าเตือนผิด
+  const now = Date.now();
+  const sunsetIsToday =
+    conditions !== null && startOfDay(conditions.sunset) === startOfDay(now);
+
+  const daylight =
+    conditions === null || !sunsetIsToday
+      ? null
+      : evaluateDaylightWarning({
+          now,
+          sunrise: conditions.sunrise,
+          sunset: conditions.sunset,
+          estimatedMinutes: summary.estimatedMinutes,
+        });
 
   // ใบอนุญาตวิ่งเปลี่ยนได้ระหว่างที่หน้าเปิดอยู่ (ดึงข้อมูลใหม่, เวลาผ่านไป) การยืนยันขอปรับกลับ
   // ขึ้นควรผูกกับ "สถานการณ์ตอนที่กด" เท่านั้น ถ้าระดับเปลี่ยนไปจริง ให้ประเมินใหม่จากค่าดิบเสมอ
@@ -167,6 +199,23 @@ export default function RunScreen() {
         </Card>
       ) : null}
 
+      {daylight && conditions ? (
+        // ตั้งใจไม่ใช้สีของใบอนุญาตวิ่ง เพราะความมืดทำให้ใบอนุญาตเป็นสีเหลืองอยู่แล้ว การ์ดลดเป้าหมาย
+        // สีเหลืองจึงขึ้นอยู่เหนือการ์ดนี้พอดี ถ้าใช้สีเดียวกันสองใบติดกันจะอ่านรวมเป็นก้อนเดียว
+        // และคำเตือนเรื่องเวลานี้เป็นคนละเรื่องกับระดับใบอนุญาตวิ่ง ไม่ควรยืมสีของกันและกันมาใช้
+        <Card background={colors.surfaceAlt}>
+          <View style={styles.warningHeader}>
+            <Ionicons name="partly-sunny-outline" size={20} color={colors.textMuted} />
+            <AppText variant="heading" weight="bold">
+              {daylightWarningTitle(daylight)}
+            </AppText>
+          </View>
+          <AppText variant="small" tone="muted">
+            {daylightWarningSentence(daylight, conditions.sunset)}
+          </AppText>
+        </Card>
+      ) : null}
+
       <Card>
         <AppText variant="heading" weight="semibold">
           สรุปก่อนวิ่ง
@@ -228,4 +277,5 @@ const styles = StyleSheet.create({
   },
   stepValue: { minWidth: 48, textAlign: 'center' },
   summaryRow: { flexDirection: 'row' },
+  warningHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

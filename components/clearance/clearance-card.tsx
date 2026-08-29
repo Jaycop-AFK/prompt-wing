@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 import { levelColors } from '@/components/clearance/colors';
-import { clearWindowSentence, LEVEL_LABEL, reasonSentence } from '@/components/clearance/copy';
+import { clearWindowSentence, formatTime, LEVEL_LABEL, reasonSentence } from '@/components/clearance/copy';
 import { Card } from '@/components/ui/card';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
@@ -35,6 +35,10 @@ export function ClearanceCard({ clearance, conditions, now, onPress }: Props) {
 
       <AppText variant="body" weight="medium">
         {clearWindowSentence(clearance.clearWindow, now)}
+      </AppText>
+
+      <AppText variant="caption" tone="muted">
+        พระอาทิตย์ตกวันนี้ {formatTime(conditions.sunset)}
       </AppText>
 
       {reason ? (
