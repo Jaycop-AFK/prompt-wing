@@ -35,6 +35,7 @@ function RootNavigator() {
         <Stack.Screen name="live-run" />
         <Stack.Screen name="run-summary" />
         <Stack.Screen name="run-history" />
+        <Stack.Screen name="venue-detail" />
       </Stack>
       <StatusBar style={dark ? 'light' : 'dark'} />
     </>
