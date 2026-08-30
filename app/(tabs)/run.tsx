@@ -236,7 +236,11 @@ export default function RunScreen() {
         onPress={() =>
           router.push({
             pathname: '/live-run',
-            params: { targetKind: effectiveTarget.kind, targetMagnitude: String(magnitudeOf(effectiveTarget)) },
+            params: {
+              targetKind: effectiveTarget.kind,
+              targetMagnitude: String(magnitudeOf(effectiveTarget)),
+              recommendedPaceSecPerKm: String(summary.recommendedPaceSecPerKm),
+            },
           })
         }
       />

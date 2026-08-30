@@ -6,4 +6,5 @@ export * from './profile';
 export * from './run-clearance';
 export * from './session-target';
 export * from './types';
+export * from './voice-coach';
 export * from './warmup-set';

@@ -18,6 +18,7 @@ import { useCadenceSensor } from '@/hooks/use-cadence-sensor';
 import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import { useLiveRunTracker } from '@/hooks/use-live-run-tracker';
+import { useVoiceCoach } from '@/hooks/use-voice-coach';
 import { evaluateSessionFormScore } from '@/services/form-samples';
 import { computeSplits } from '@/services/geo';
 import { saveSession } from '@/storage/session-storage';
@@ -28,7 +29,11 @@ const MAP_DELTA = 0.006;
 export default function LiveRunScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ targetKind?: string; targetMagnitude?: string }>();
+  const params = useLocalSearchParams<{
+    targetKind?: string;
+    targetMagnitude?: string;
+    recommendedPaceSecPerKm?: string;
+  }>();
   const tracker = useLiveRunTracker();
   const { profile } = useProfile();
 
@@ -59,6 +64,14 @@ export default function LiveRunScreen() {
       : cadence.cadenceSpm === null
         ? '—'
         : formatCadence(cadence.cadenceSpm);
+
+  const voiceCoach = useVoiceCoach({
+    isRunning,
+    paceSecPerKm: tracker.paceSecPerKm,
+    recommendedPaceSecPerKm: params.recommendedPaceSecPerKm ? Number(params.recommendedPaceSecPerKm) : null,
+    distanceKm: tracker.distanceKm,
+    elapsedSeconds: tracker.elapsedSeconds,
+  });
 
   // กันหน้าจอดับระหว่างวิ่งหรือหยุดชั่วคราวเท่านั้น เพราะ GPS หยุดเก็บทันทีที่หน้าจอดับ
   // (ข้อจำกัดของ Expo Go ตาม ADR 0002) ไม่ต้องกันหน้าจอดับตอนยังไม่เริ่มหรือตอนดูสรุปแล้ว
@@ -217,7 +230,24 @@ export default function LiveRunScreen() {
   const latest = tracker.points[tracker.points.length - 1] ?? null;
 
   return (
-    <Screen title="วิ่ง" scroll={false}>
+    <Screen
+      title="วิ่ง"
+      scroll={false}
+      headerRight={
+        <Pressable
+          onPress={voiceCoach.toggle}
+          hitSlop={12}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: voiceCoach.enabled }}
+          accessibilityLabel={voiceCoach.enabled ? 'ปิดเสียงโค้ช' : 'เปิดเสียงโค้ช'}
+          style={({ pressed }) => [pressed && styles.headerButtonPressed]}>
+          <Ionicons
+            name={voiceCoach.enabled ? 'volume-high-outline' : 'volume-mute-outline'}
+            size={22}
+            color={colors.text}
+          />
+        </Pressable>
+      }>
       <View style={styles.body}>
         {!isTracking ? (
           <Card background={colors.surfaceAlt}>
@@ -303,6 +333,7 @@ export default function LiveRunScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  headerButtonPressed: { opacity: 0.6 },
   body: { flex: 1, padding: spacing.lg, gap: spacing.md },
   mapWrap: { height: 200, borderRadius: radius.lg, overflow: 'hidden' },
   map: { flex: 1 },
