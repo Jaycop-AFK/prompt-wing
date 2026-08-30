@@ -2,7 +2,6 @@ import { isDarkAt } from './daylight';
 import type {
   ClearWindow,
   ClearanceFactor,
-  ClearanceLevel,
   EpochMillis,
   EvaluateRunClearanceInput,
   HourClearance,
