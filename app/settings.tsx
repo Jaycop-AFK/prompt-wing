@@ -12,7 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function SettingsScreen() {
   const { colors } = useTheme();
-  const { username, logout } = useAuth();
+  const { email, signOut } = useAuth();
 
   // ค่าในจอนี้ (แจ้งเตือน/หน่วย) ไม่ได้ผูก AsyncStorage เพราะยังไม่มีผลจริงต่อจอไหนเลยในเวอร์ชันนี้
   // เก็บแค่ในหน่วยความจำก็พอ ไม่งั้นจะดูเหมือนเป็นการตั้งค่าจริงที่ผู้ใช้ควรไว้ใจว่าจำไว้ข้ามเซสชัน
@@ -24,15 +24,15 @@ export default function SettingsScreen() {
   const handleLogout = () => {
     Alert.alert('ออกจากระบบ?', 'คุณจะต้องเข้าสู่ระบบใหม่อีกครั้งในครั้งถัดไป', [
       { text: 'ยกเลิก', style: 'cancel' },
-      { text: 'ออกจากระบบ', style: 'destructive', onPress: logout },
+      { text: 'ออกจากระบบ', style: 'destructive', onPress: signOut },
     ]);
   };
 
   return (
     <Screen title="เพิ่มเติม" back>
-      {username ? (
+      {email ? (
         <AppText variant="small" tone="muted">
-          เข้าสู่ระบบเป็น {username}
+          เข้าสู่ระบบเป็น {email}
         </AppText>
       ) : null}
 

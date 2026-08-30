@@ -20,20 +20,52 @@ const MODE_LABEL: Record<Mode, string> = { login: 'เข้าสู่ระ�
 export default function LoginScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { login } = useAuth();
+  const { signIn, signUp } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // ต้องกรอกอะไรสักอย่างไว้เป็นชื่อผู้ใช้ ไม่งั้นจะไม่มีอะไรให้เก็บ/แสดงในหน้าเพิ่มเติมภายหลัง
-  // ส่วนรหัสผ่านกรอกอะไรก็ผ่านตามที่ ADR 0003 ตั้งใจไว้ ไม่ต้องกรอกก็ยังกดผ่านได้
-  const canSubmit = identifier.trim().length > 0;
+  // เข้าสู่ระบบจริงผ่าน Supabase Auth แล้ว (ไม่ใช่ระบบจำลองอีกต่อไป) ทั้งอีเมลและรหัสผ่านต้องกรอก
+  // จริงเพราะเป็นเซิร์ฟเวอร์จริงที่ตรวจสอบ
+  const canSubmit = identifier.trim().length > 0 && password.length > 0 && !submitting;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    // ไม่เก็บ password เลยแม้แต่ตัวแปรชั่วคราวก็ไม่ส่งต่อไปไหน มีไว้ให้กรอกได้ตามแบบร่างเท่านั้น
-    login(identifier.trim());
+    setSubmitting(true);
+
+    if (mode === 'signup') {
+      const { error, needsEmailConfirmation } = await signUp(identifier.trim(), password);
+      setSubmitting(false);
+
+      if (error) {
+        Alert.alert('สมัครสมาชิกไม่สำเร็จ', error.message);
+        return;
+      }
+      if (needsEmailConfirmation) {
+        // โปรเจกต์ Supabase เปิดให้ต้องยืนยันอีเมลก่อน (ค่าเริ่มต้น) ต้องบอกตรง ๆ ไม่งั้นผู้ใช้จะ
+        // กดสมัครแล้วรู้สึกว่าไม่มีอะไรเกิดขึ้นเลย ทั้งที่จริงสมัครสำเร็จแล้วแค่รอยืนยัน
+        Alert.alert(
+          'สมัครสมาชิกสำเร็จ',
+          'ตรวจอีเมลของคุณเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบอีกครั้ง'
+        );
+        setMode('login');
+      }
+      // ถ้าไม่ต้องยืนยันอีเมล (ปิดไว้ในโปรเจกต์ Supabase) session จะถูกสร้างทันที และ
+      // onAuthStateChange ใน hooks/use-auth.tsx จะพาเข้าแอปเองผ่าน Stack.Protected โดยไม่ต้องทำอะไรต่อ
+      return;
+    }
+
+    const error = await signIn(identifier.trim(), password);
+    if (error) {
+      setSubmitting(false);
+      Alert.alert('เข้าสู่ระบบไม่สำเร็จ', error.message);
+      return;
+    }
+
+    // ไม่ setSubmitting(false) ตรงนี้เพราะจอนี้กำลังจะถูกแทนที่จาก Stack.Protected ที่ตรวจจับว่า
+    // userId เปลี่ยนแล้วอยู่ดี router.replace ยังเรียกไว้ตามรูปแบบที่ Expo Router แนะนำอย่างเป็นทางการ
     router.replace('/');
   };
 
@@ -112,7 +144,11 @@ export default function LoginScreen() {
         />
       </View>
 
-      <Button label={MODE_LABEL[mode]} onPress={handleSubmit} disabled={!canSubmit} />
+      <Button
+        label={submitting ? 'กำลังดำเนินการ...' : MODE_LABEL[mode]}
+        onPress={handleSubmit}
+        disabled={!canSubmit}
+      />
 
       <View style={styles.dividerRow}>
         <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />

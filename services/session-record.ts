@@ -7,7 +7,8 @@ import type { Split, TrackPoint } from './geo';
  *
  * อยู่ใน services/ ไม่ใช่ storage/ เพราะเป็นรูปร่างของข้อมูลในโดเมน ไม่ใช่รายละเอียดของวิธีเก็บ
  * โมดูลที่คำนวณจากประวัติการวิ่ง (เช่น services/run-history.ts) จึงใช้ชนิดนี้ได้โดยไม่ต้องลาก
- * expo-sqlite ติดมาด้วย ซึ่งจะทำให้เทสต์โดยไม่มีเครื่องจริงไม่ได้
+ * services/supabase.ts ติดมาด้วย พิสูจน์แล้วจริงตอนสลับกลไกเก็บข้อมูลจาก expo-sqlite มาเป็น
+ * Supabase ทั้งยวง โดยไม่ต้องแก้ไฟล์นี้หรือจอไหนที่ import ชนิดนี้ไปใช้เลยแม้แต่บรรทัดเดียว
  */
 export interface SessionRecord {
   id: number;

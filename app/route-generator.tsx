@@ -4,14 +4,13 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { MockBadge } from '@/components/ui/mock-badge';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Coordinates } from '@/services/geo';
 import { getCurrentCoordinates } from '@/services/location';
-import { generateCircularRoute } from '@/services/route-generator';
+import { generateStreetRoute } from '@/services/mapbox-routing';
 
 const DISTANCE_PRESETS = [3, 5, 8, 10, 15, 21];
 /** จุดเริ่มต้นของกล้องก่อน fitToCoordinates จะปรับให้พอดีกับเส้นทางจริงอีกที ไม่ต้องคำนวณตามระยะ
@@ -24,8 +23,10 @@ export default function RouteGeneratorScreen() {
   const [distanceKm, setDistanceKm] = useState(5);
   const [origin, setOrigin] = useState<Coordinates | null>(null);
   const [route, setRoute] = useState<Coordinates[] | null>(null);
+  const [actualDistanceKm, setActualDistanceKm] = useState<number | null>(null);
   const [isFallbackLocation, setIsFallbackLocation] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const mapRef = useRef<MapView | null>(null);
   // MapView ตัวจริงพร้อมรับคำสั่ง fitToCoordinates ต่อเมื่อโหลดเสร็จแล้วเท่านั้น (onMapReady)
@@ -38,32 +39,32 @@ export default function RouteGeneratorScreen() {
     mapRef.current?.fitToCoordinates(points, { edgePadding: ROUTE_EDGE_PADDING, animated: true });
   };
 
-  // getCurrentCoordinates ไม่ throw เลย (ดู services/location.ts) ถอยไปใช้ตำแหน่งสำรองเองเมื่อขอ
-  // ตำแหน่งจริงไม่ได้ จึงไม่ต้องมี try/catch หรือสถานะ error ที่นี่ แค่บอกผู้ใช้เมื่อเป็นตำแหน่งสำรอง
-  //
-  // ยังต้องมีสถานะกำลังโหลดอยู่ดี แม้จะไม่มีทาง error เพราะ getCurrentPositionAsync ของเครื่องจริง
-  // ใช้เวลาได้หลายวินาทีเวลาสัญญาณ GPS อ่อน ปุ่มที่ไม่ตอบสนองอะไรเลยระหว่างรอจะดูเหมือนจอค้าง
-  // (รูปแบบเดียวกับที่ hooks/use-venues.ts + app/(tabs)/venues.tsx ทำไว้กับ getCurrentCoordinates
-  // ตัวเดียวกันนี้) ปิดปุ่มไว้ระหว่างรอด้วย กันกดซ้ำจนยิงคำขอตำแหน่งซ้อนกันหลายรอบโดยไม่จำเป็น
+  // getCurrentCoordinates ไม่ throw เลย (ดู services/location.ts) แต่ generateStreetRoute throw ได้
+  // จริง เพราะเรียก Mapbox API จริงผ่านเน็ต (ไม่มีโทเคน, เน็ตหลุด, หรือหาเส้นทางไม่ได้แถวนั้นเลย)
   const handleGenerate = async () => {
     setIsGenerating(true);
-    const location = await getCurrentCoordinates();
-    const nextRoute = generateCircularRoute(location.coordinates, distanceKm);
+    setErrorMessage(null);
 
+    const location = await getCurrentCoordinates();
     setOrigin(location.coordinates);
     setIsFallbackLocation(location.isFallback);
-    setRoute(nextRoute);
-    setIsGenerating(false);
 
-    // สร้างเส้นทางใหม่ทับของเดิมด้วยระยะอื่น ต้อง fit เองเพราะแผนที่ mount อยู่แล้ว ครั้งแรกปล่อยให้
-    // onMapReady จัดการแทน เพราะตอนนี้ (ก่อน state ข้างบนอัปเดตจริง) แผนที่ยังไม่ถูก mount เลยด้วยซ้ำ
-    if (isMapReadyRef.current) fitToRoute(nextRoute);
+    try {
+      const result = await generateStreetRoute(location.coordinates, distanceKm);
+      setRoute(result.points);
+      setActualDistanceKm(result.actualDistanceKm);
+      if (isMapReadyRef.current) fitToRoute(result.points);
+    } catch (error) {
+      setRoute(null);
+      setActualDistanceKm(null);
+      setErrorMessage(error instanceof Error ? error.message : 'สร้างเส้นทางไม่สำเร็จ ลองใหม่อีกครั้ง');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
     <Screen title="สร้างเส้นทางวงกลม" back>
-      <MockBadge label="เส้นทางจำลอง ไม่ได้ตรวจสอบกับถนนจริง" />
-
       <Card>
         <AppText variant="body">ระยะที่ต้องการ</AppText>
         <View style={styles.presetRow}>
@@ -92,7 +93,7 @@ export default function RouteGeneratorScreen() {
           })}
         </View>
         <Button
-          label={isGenerating ? 'กำลังหาตำแหน่ง...' : 'สร้างเส้นทาง'}
+          label={isGenerating ? 'กำลังคำนวณเส้นทาง...' : 'สร้างเส้นทาง'}
           onPress={handleGenerate}
           disabled={isGenerating}
         />
@@ -104,25 +105,40 @@ export default function RouteGeneratorScreen() {
         </AppText>
       ) : null}
 
-      {route && origin ? (
-        <View style={styles.mapWrap}>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={{
-              latitude: origin.latitude,
-              longitude: origin.longitude,
-              latitudeDelta: INITIAL_MAP_DELTA,
-              longitudeDelta: INITIAL_MAP_DELTA,
-            }}
-            onMapReady={() => {
-              isMapReadyRef.current = true;
-              fitToRoute(route);
-            }}>
-            <Polyline coordinates={route} strokeColor={colors.brand} strokeWidth={4} />
-            <Marker coordinate={origin} pinColor={colors.brand} title="จุดเริ่มต้น/สิ้นสุด" />
-          </MapView>
-        </View>
+      {errorMessage ? (
+        <Card background={colors.surfaceAlt}>
+          <AppText variant="body" tone="muted">
+            {errorMessage}
+          </AppText>
+        </Card>
+      ) : null}
+
+      {route && origin && actualDistanceKm !== null ? (
+        <>
+          {/* ระยะจริงตามถนนแทบไม่มีทางตรงกับที่ขอเป๊ะ เพราะต้องเดินตามถนน/ทางเดินจริง ไม่ใช่เส้นตรง
+              เรขาคณิต แสดงทั้งสองตัวเลขตรง ๆ ไม่ปัดให้ดูเหมือนตรงกันหลอก ๆ */}
+          <AppText variant="small" tone="muted">
+            ขอ {distanceKm.toFixed(1)} กม. · เส้นทางจริงตามถนน {actualDistanceKm.toFixed(1)} กม.
+          </AppText>
+          <View style={styles.mapWrap}>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={{
+                latitude: origin.latitude,
+                longitude: origin.longitude,
+                latitudeDelta: INITIAL_MAP_DELTA,
+                longitudeDelta: INITIAL_MAP_DELTA,
+              }}
+              onMapReady={() => {
+                isMapReadyRef.current = true;
+                fitToRoute(route);
+              }}>
+              <Polyline coordinates={route} strokeColor={colors.brand} strokeWidth={4} />
+              <Marker coordinate={origin} pinColor={colors.brand} title="จุดเริ่มต้น/สิ้นสุด" />
+            </MapView>
+          </View>
+        </>
       ) : null}
     </Screen>
   );

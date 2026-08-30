@@ -49,8 +49,7 @@
           "locationWhenInUsePermission": "พร้อมวิ่งใช้ตำแหน่งของคุณเพื่อบอกสภาพอากาศและฝุ่นตรงที่คุณอยู่ หาที่วิ่งใกล้ตัว และวาดเส้นทางระหว่างวิ่งจริง",
           "isAndroidBackgroundLocationEnabled": false
         }
-      ],
-      "expo-sqlite"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

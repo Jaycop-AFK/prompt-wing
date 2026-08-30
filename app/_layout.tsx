@@ -26,7 +26,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 function RootNavigator() {
   const { colors, dark } = useTheme();
-  const { username, loading: authLoading } = useAuth();
+  const { userId, loading: authLoading } = useAuth();
 
   // หน้า splash ยังค้างอยู่จนกว่าจะรู้สถานะเข้าสู่ระบบจริง (ไม่ใช่แค่ฟอนต์โหลดเสร็จ) ไม่งั้นจะมีจังหวะ
   // ว่างเปล่าโผล่ขึ้นมาสั้น ๆ ก่อนสลับไปหน้าเข้าสู่ระบบหรือเข้าแอป ดู RootLayout ด้านล่างที่ค้าง
@@ -41,7 +41,7 @@ function RootNavigator() {
   return (
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Protected guard={username !== null}>
+        <Stack.Protected guard={userId !== null}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="weather" />
           <Stack.Screen name="warmup" />
@@ -53,7 +53,7 @@ function RootNavigator() {
           <Stack.Screen name="route-generator" />
         </Stack.Protected>
 
-        <Stack.Protected guard={username === null}>
+        <Stack.Protected guard={userId === null}>
           <Stack.Screen name="login" />
         </Stack.Protected>
       </Stack>
@@ -78,11 +78,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ProfileProvider>
-          <AuthProvider>
+        {/* AuthProvider ต้องอยู่นอก ProfileProvider เสมอ เพราะ ProfileProvider เรียก useAuth()
+            เพื่อรู้ userId แล้วโหลดโปรไฟล์ใหม่ทุกครั้งที่สถานะล็อกอินเปลี่ยน (ดู hooks/use-profile.tsx) */}
+        <AuthProvider>
+          <ProfileProvider>
             <RootNavigator />
-          </AuthProvider>
-        </ProfileProvider>
+          </ProfileProvider>
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

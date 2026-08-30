@@ -1,22 +1,33 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/services/supabase';
 
-const STORAGE_KEY = 'promptwing.venueFavorites';
-
-/** รหัส Venue ที่บันทึกไว้ทั้งหมด คืนเซตว่างถ้ายังไม่เคยบันทึกหรืออ่านไม่ได้ */
+/** รหัส Venue ที่บันทึกไว้ทั้งหมดของผู้ใช้ที่ล็อกอินอยู่ (RLS กรองให้เอง) คืนเซตว่างถ้าอ่านไม่ได้ */
 export async function loadFavoriteVenueIds(): Promise<Set<string>> {
-  try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw === null) return new Set();
-
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-
-    return new Set(parsed.filter((id): id is string => typeof id === 'string'));
-  } catch {
-    return new Set();
-  }
+  const { data, error } = await supabase.from('venue_favorites').select('venue_id');
+  if (error || !data) return new Set();
+  return new Set(data.map((row) => row.venue_id));
 }
 
+/**
+ * บันทึกรายการที่บันทึกไว้ทั้งชุดทับของเดิม (ลบทั้งหมดแล้วใส่ชุดใหม่) ตรงกับรูปแบบเดิมสมัยเก็บเป็น
+ * เซตเดียวใน AsyncStorage ผู้เรียก (hooks/use-venues.ts) ยังคงคำนวณเซตใหม่ทั้งก้อนแล้วส่งมาที่นี่
+ * เหมือนเดิม ไม่ต้องแก้ตรรกะฝั่งนั้นเลย
+ */
 export async function saveFavoriteVenueIds(ids: ReadonlySet<string>): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return;
+
+  const { error: deleteError } = await supabase
+    .from('venue_favorites')
+    .delete()
+    .eq('user_id', session.user.id);
+  if (deleteError) throw deleteError;
+
+  if (ids.size === 0) return;
+
+  const { error: insertError } = await supabase
+    .from('venue_favorites')
+    .insert([...ids].map((venueId) => ({ venue_id: venueId })));
+  if (insertError) throw insertError;
 }

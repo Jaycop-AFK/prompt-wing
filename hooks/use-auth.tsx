@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { AuthError } from '@supabase/supabase-js';
 import {
   createContext,
   useCallback,
@@ -9,66 +9,69 @@ import {
   type ReactNode,
 } from 'react';
 
-const STORAGE_KEY = 'promptwing.username';
+import { supabase } from '@/services/supabase';
 
 interface AuthContextValue {
-  /** ชื่อผู้ใช้ที่เข้าสู่ระบบอยู่ null คือยังไม่ได้เข้าสู่ระบบ ไม่มีรหัสผ่านเก็บอยู่ที่ไหนเลย ดู ADR 0003 */
-  username: string | null;
-  /** true จนกว่าจะอ่านค่าที่บันทึกไว้เสร็จ ตัวนำทางที่ราก (app/_layout.tsx) ต้องรอค่านี้ก่อนตัดสินใจ
-   * ว่าจะพาไปหน้าเข้าสู่ระบบหรือเข้าแอปเลย ไม่งั้นผู้ใช้ที่เคยเข้าสู่ระบบไว้แล้วจะเห็นหน้าเข้าสู่ระบบ
-   * กระพริบขึ้นมาเดี๋ยวเดียวก่อนสลับเข้าแอป */
+  /** auth.uid() ของผู้ใช้ที่ล็อกอินอยู่ null คือยังไม่ได้ล็อกอิน ใช้ผูกกับข้อมูลของผู้ใช้ในทุกตาราง */
+  userId: string | null;
+  /** อีเมลของผู้ใช้ที่ล็อกอินอยู่ สำหรับแสดงผลเท่านั้น */
+  email: string | null;
+  /** true จนกว่าจะรู้สถานะเซสชันจริงจาก Supabase ตัวนำทางที่ราก (app/_layout.tsx) ต้องรอค่านี้ก่อน */
   loading: boolean;
-  login: (username: string) => void;
-  logout: () => void;
+  signIn: (email: string, password: string) => Promise<AuthError | null>;
+  /** needsEmailConfirmation เป็น true เมื่อสมัครสำเร็จแต่ยังไม่มี session จริง เพราะโปรเจกต์ Supabase
+   * เปิดให้ต้องยืนยันอีเมลก่อน (ค่าเริ่มต้นของ Supabase) ผู้เรียกต้องบอกผู้ใช้ให้ไปเช็คอีเมล ไม่ใช่
+   * เข้าใจว่าสมัครเสร็จแล้วเข้าแอปได้ทันที */
+  signUp: (
+    email: string,
+    password: string
+  ) => Promise<{ error: AuthError | null; needsEmailConfirmation: boolean }>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * สถานะเข้าสู่ระบบแบบจำลอง ไม่มีการยืนยันตัวตนจริง เก็บแค่ชื่อผู้ใช้ในเครื่อง (ดู ADR 0003)
+ * สถานะเข้าสู่ระบบจริงผ่าน Supabase Auth (อีเมล+รหัสผ่าน) แทนที่ระบบจำลองเดิม
  *
- * ปุ่มเข้าสู่ระบบ/สมัครสมาชิก และปุ่มออกจากระบบ ล้วนแค่เขียน/ลบชื่อผู้ใช้นี้ ไม่มีเซิร์ฟเวอร์ให้เรียก
+ * ไม่เรียก supabase.auth.getSession() เองแยกต่างหาก เพราะ onAuthStateChange ยิง event
+ * 'INITIAL_SESSION' ให้ทันทีตอน subscribe อยู่แล้วพร้อมสถานะเซสชันปัจจุบัน เรียกซ้ำสองทางจะมี
+ * โอกาสแข่งกันเองโดยไม่จำเป็น ใช้แหล่งเดียวพอ
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [username, setUsername] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null);
+      setEmail(session?.user.email ?? null);
+      setLoading(false);
+    });
 
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
-        if (!cancelled) setUsername(stored);
-      })
-      .catch(() => {
-        // อ่านค่าที่บันทึกไว้ไม่ได้ก็ถือว่ายังไม่ได้เข้าสู่ระบบ ผู้ใช้เข้าสู่ระบบใหม่ได้ตามปกติ
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = useCallback((next: string) => {
-    setUsername(next);
-    AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {
-      // บันทึกไม่ได้ก็ยังเข้าแอปได้ในรอบนี้ แค่เปิดแอปใหม่ครั้งหน้าต้องเข้าสู่ระบบอีกครั้ง
-    });
+  const signIn = useCallback(async (emailInput: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password });
+    return error;
   }, []);
 
-  const logout = useCallback(() => {
-    setUsername(null);
-    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {
-      // ลบไม่สำเร็จก็ยังออกจากระบบได้ในรอบนี้ แค่ค่าเก่าอาจค้างอยู่ในเครื่อง
-    });
+  const signUp = useCallback(async (emailInput: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({ email: emailInput, password });
+    return { error, needsEmailConfirmation: error === null && data.session === null };
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ username, loading, login, logout }),
-    [username, loading, login, logout]
+    () => ({ userId, email, loading, signIn, signUp, signOut }),
+    [userId, email, loading, signIn, signUp, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
