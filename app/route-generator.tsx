@@ -9,8 +9,8 @@ import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Coordinates } from '@/services/geo';
+import { generateStreetRoute } from '@/services/graphhopper-routing';
 import { getCurrentCoordinates } from '@/services/location';
-import { generateStreetRoute } from '@/services/mapbox-routing';
 
 const DISTANCE_PRESETS = [3, 5, 8, 10, 15, 21];
 /** จุดเริ่มต้นของกล้องก่อน fitToCoordinates จะปรับให้พอดีกับเส้นทางจริงอีกที ไม่ต้องคำนวณตามระยะ
@@ -40,7 +40,7 @@ export default function RouteGeneratorScreen() {
   };
 
   // getCurrentCoordinates ไม่ throw เลย (ดู services/location.ts) แต่ generateStreetRoute throw ได้
-  // จริง เพราะเรียก Mapbox API จริงผ่านเน็ต (ไม่มีโทเคน, เน็ตหลุด, หรือหาเส้นทางไม่ได้แถวนั้นเลย)
+  // จริง เพราะเรียก GraphHopper API จริงผ่านเน็ต (ไม่มี key, เน็ตหลุด, หรือหาเส้นทางไม่ได้แถวนั้นเลย)
   const handleGenerate = async () => {
     setIsGenerating(true);
     setErrorMessage(null);

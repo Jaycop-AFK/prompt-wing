@@ -30,7 +30,7 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files (มี key จริงของ Supabase/Mapbox) .env.example เก็บไว้เป็นแม่แบบแทน
+# local env files (มี key จริงของ Supabase/GraphHopper) .env.example เก็บไว้เป็นแม่แบบแทน
 .env
 .env*.local
 
