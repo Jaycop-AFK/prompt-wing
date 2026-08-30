@@ -1,0 +1,180 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+
+import { OAUTH_PROVIDERS } from '@/components/auth/copy';
+import { Button } from '@/components/ui/button';
+import { MockBadge } from '@/components/ui/mock-badge';
+import { Screen } from '@/components/ui/screen';
+import { AppText } from '@/components/ui/text';
+import { radius, spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
+import { useTheme } from '@/hooks/use-theme';
+
+type Mode = 'login' | 'signup';
+
+const MODE_ORDER: Mode[] = ['login', 'signup'];
+const MODE_LABEL: Record<Mode, string> = { login: 'เข้าสู่ระบบ', signup: 'สมัครสมาชิก' };
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const { colors } = useTheme();
+  const { login } = useAuth();
+
+  const [mode, setMode] = useState<Mode>('login');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+
+  // ต้องกรอกอะไรสักอย่างไว้เป็นชื่อผู้ใช้ ไม่งั้นจะไม่มีอะไรให้เก็บ/แสดงในหน้าเพิ่มเติมภายหลัง
+  // ส่วนรหัสผ่านกรอกอะไรก็ผ่านตามที่ ADR 0003 ตั้งใจไว้ ไม่ต้องกรอกก็ยังกดผ่านได้
+  const canSubmit = identifier.trim().length > 0;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    // ไม่เก็บ password เลยแม้แต่ตัวแปรชั่วคราวก็ไม่ส่งต่อไปไหน มีไว้ให้กรอกได้ตามแบบร่างเท่านั้น
+    login(identifier.trim());
+    router.replace('/');
+  };
+
+  const handleOAuth = (providerLabel: string) => {
+    Alert.alert(
+      'ยังไม่เชื่อมต่อจริง',
+      `การ${mode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}ด้วย ${providerLabel} เป็นภาพจำลองสำหรับสาธิตเท่านั้น ยังไม่ได้ต่อ OAuth จริง`
+    );
+  };
+
+  return (
+    <Screen>
+      <View style={styles.header}>
+        <AppText variant="display" weight="bold" align="center">
+          พร้อมวิ่ง
+        </AppText>
+        <AppText variant="body" tone="muted" align="center">
+          {mode === 'login' ? 'เข้าสู่ระบบเพื่อเริ่มวิ่ง' : 'สมัครสมาชิกเพื่อเริ่มวิ่ง'}
+        </AppText>
+      </View>
+
+      <View style={[styles.modeSwitch, { backgroundColor: colors.surfaceAlt }]}>
+        {MODE_ORDER.map((option) => {
+          const active = mode === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => setMode(option)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              style={[styles.modeChip, active && { backgroundColor: colors.surface }]}>
+              <AppText variant="small" weight="semibold" color={active ? colors.text : colors.textMuted}>
+                {MODE_LABEL[option]}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.field}>
+        <AppText variant="small" tone="muted">
+          อีเมล
+        </AppText>
+        <TextInput
+          value={identifier}
+          onChangeText={setIdentifier}
+          placeholder="you@example.com"
+          placeholderTextColor={colors.textFaint}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          accessibilityLabel="อีเมล"
+          style={[
+            styles.input,
+            { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+          ]}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <AppText variant="small" tone="muted">
+          รหัสผ่าน
+        </AppText>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••"
+          placeholderTextColor={colors.textFaint}
+          secureTextEntry
+          autoComplete="password"
+          accessibilityLabel="รหัสผ่าน"
+          style={[
+            styles.input,
+            { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+          ]}
+        />
+      </View>
+
+      <Button label={MODE_LABEL[mode]} onPress={handleSubmit} disabled={!canSubmit} />
+
+      <View style={styles.dividerRow}>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        <AppText variant="caption" tone="faint">
+          หรือ
+        </AppText>
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+      </View>
+
+      <MockBadge label="ยังไม่เชื่อมต่อจริง" />
+
+      <View style={styles.oauthList}>
+        {OAUTH_PROVIDERS.map((provider) => (
+          <Pressable
+            key={provider.id}
+            onPress={() => handleOAuth(provider.label)}
+            accessibilityRole="button"
+            accessibilityLabel={`${MODE_LABEL[mode]}ด้วย ${provider.label}`}
+            style={[styles.oauthButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+            <Ionicons name={provider.icon} size={20} color={colors.text} />
+            <AppText variant="body" weight="semibold">
+              {MODE_LABEL[mode]}ด้วย {provider.label}
+            </AppText>
+          </Pressable>
+        ))}
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: { gap: spacing.xs, marginTop: spacing.xxl, marginBottom: spacing.md },
+  modeSwitch: {
+    flexDirection: 'row',
+    borderRadius: radius.pill,
+    padding: 4,
+    marginBottom: spacing.sm,
+  },
+  modeChip: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+  },
+  field: { gap: spacing.xs },
+  input: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+  },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  oauthList: { gap: spacing.sm },
+  oauthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: 52,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+});

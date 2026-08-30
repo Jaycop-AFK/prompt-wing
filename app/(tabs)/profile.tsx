@@ -14,7 +14,6 @@ import {
 } from '@/components/profile/copy';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ComingSoon } from '@/components/ui/coming-soon';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -296,7 +295,15 @@ export default function ProfileScreen() {
         />
       </Card>
 
-      <ComingSoon ticket="18">หน้าเพิ่มเติม การแจ้งเตือน หน่วยการวัด และเกี่ยวกับเรา</ComingSoon>
+      <Card>
+        <AppText variant="heading" weight="semibold">
+          เพิ่มเติม
+        </AppText>
+        <AppText variant="body" tone="muted">
+          การแจ้งเตือน หน่วยการวัด ภาษา ช่วยเหลือ เกี่ยวกับเรา และออกจากระบบ
+        </AppText>
+        <Button label="ดูเพิ่มเติม" onPress={() => router.push('/settings')} variant="secondary" />
+      </Card>
     </Screen>
   );
 }

@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { ProfileProvider } from '@/hooks/use-profile';
 import { ThemeProvider, useTheme } from '@/hooks/use-theme';
 
@@ -25,17 +26,35 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 function RootNavigator() {
   const { colors, dark } = useTheme();
+  const { username, loading: authLoading } = useAuth();
+
+  // หน้า splash ยังค้างอยู่จนกว่าจะรู้สถานะเข้าสู่ระบบจริง (ไม่ใช่แค่ฟอนต์โหลดเสร็จ) ไม่งั้นจะมีจังหวะ
+  // ว่างเปล่าโผล่ขึ้นมาสั้น ๆ ก่อนสลับไปหน้าเข้าสู่ระบบหรือเข้าแอป ดู RootLayout ด้านล่างที่ค้าง
+  // การเรนเดอร์ต้นไม้นี้ทั้งหมดไว้จนกว่าฟอนต์จะโหลดเสร็จอยู่แล้ว ผลคือตอน effect นี้ทำงาน ฟอนต์
+  // พร้อมเสมอ เหลือรอแค่เงื่อนไข auth เพิ่มอีกอย่างเดียว
+  useEffect(() => {
+    if (!authLoading) SplashScreen.hideAsync().catch(() => {});
+  }, [authLoading]);
+
+  if (authLoading) return null;
 
   return (
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="weather" />
-        <Stack.Screen name="warmup" />
-        <Stack.Screen name="live-run" />
-        <Stack.Screen name="run-summary" />
-        <Stack.Screen name="run-history" />
-        <Stack.Screen name="venue-detail" />
+        <Stack.Protected guard={username !== null}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="weather" />
+          <Stack.Screen name="warmup" />
+          <Stack.Screen name="live-run" />
+          <Stack.Screen name="run-summary" />
+          <Stack.Screen name="run-history" />
+          <Stack.Screen name="venue-detail" />
+          <Stack.Screen name="settings" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={username === null}>
+          <Stack.Screen name="login" />
+        </Stack.Protected>
       </Stack>
       <StatusBar style={dark ? 'light' : 'dark'} />
     </>
@@ -50,18 +69,18 @@ export default function RootLayout() {
     NotoSansThai_700Bold,
   });
 
-  useEffect(() => {
-    // ถ้าฟอนต์โหลดไม่สำเร็จก็ยังต้องแสดงแอป ไม่ใช่ค้างที่หน้า splash ตลอดไป
-    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded, fontError]);
-
+  // ถ้าฟอนต์โหลดไม่สำเร็จก็ยังต้องแสดงแอปต่อ ไม่ใช่ค้างที่หน้า splash ตลอดไป การซ่อนหน้า splash จริง
+  // ทำใน RootNavigator แทน (รอเงื่อนไข auth เพิ่มด้วย) แต่ต้องรอฟอนต์ให้พร้อมก่อนเสมอด้วย return null
+  // นี้ ไม่งั้นตัวอักษรจะเปลี่ยนฟอนต์ให้เห็นหลังจอแรกเปิดขึ้นมาแล้ว
   if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <ThemeProvider>
         <ProfileProvider>
-          <RootNavigator />
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
         </ProfileProvider>
       </ThemeProvider>
     </SafeAreaProvider>
