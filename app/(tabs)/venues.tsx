@@ -8,7 +8,6 @@ import { SORT_LABEL, SORT_ORDER } from '@/components/venues/copy';
 import { VenueCard } from '@/components/venues/venue-card';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ComingSoon } from '@/components/ui/coming-soon';
 import { MockBadge } from '@/components/ui/mock-badge';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
@@ -129,7 +128,24 @@ export default function VenuesScreen() {
         {fallbackNotice}
         {popularityNotice}
 
-        <ComingSoon ticket="19">ปุ่มสร้างเส้นทางวงกลมตามระยะที่ขอ</ComingSoon>
+        <Card>
+          <View style={styles.routeGeneratorRow}>
+            <Ionicons name="navigate-circle-outline" size={22} color={colors.brand} />
+            <View style={styles.routeGeneratorText}>
+              <AppText variant="body" weight="semibold">
+                สร้างเส้นทางวงกลม
+              </AppText>
+              <AppText variant="caption" tone="muted">
+                ระบุระยะที่ต้องการ แล้ววาดเส้นทางวนกลับมาจุดเดิม
+              </AppText>
+            </View>
+            <Button
+              label="สร้าง"
+              onPress={() => router.push('/route-generator')}
+              variant="secondary"
+            />
+          </View>
+        </Card>
 
         {venues.length === 0 ? (
           emptyState
@@ -198,6 +214,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  routeGeneratorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  routeGeneratorText: { flex: 1, gap: 2 },
   list: { flex: 1 },
   // ระยะขอบล่างของการเลื่อนรายการ ใช้ค่าเดียวกับ Screen ทั่วทั้งแอป (components/ui/screen.tsx)
   listContent: { gap: spacing.md, paddingBottom: spacing.xxl },

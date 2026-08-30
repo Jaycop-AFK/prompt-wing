@@ -50,6 +50,7 @@ function RootNavigator() {
           <Stack.Screen name="run-history" />
           <Stack.Screen name="venue-detail" />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="route-generator" />
         </Stack.Protected>
 
         <Stack.Protected guard={username === null}>
