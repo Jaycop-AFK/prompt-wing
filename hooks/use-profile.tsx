@@ -18,8 +18,10 @@ interface ProfileContextValue {
   /** true จนกว่าจะอ่านค่าที่บันทึกไว้เสร็จ จอที่แสดงตัวเลขจากโปรไฟล์ต้องรอก่อน ไม่งั้นจะเห็นค่าว่าง
    * แวบหนึ่งแล้วกระโดดเป็นค่าจริง ซึ่งดูเหมือนแอปลืมข้อมูลที่ผู้ใช้กรอกไว้ */
   loading: boolean;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   /** แก้เฉพาะช่องที่ส่งมา ช่องอื่นคงเดิม บันทึกขึ้น Supabase ให้เองทันที */
   update: (patch: Partial<RunnerProfile>) => void;
+  retrySave: () => void;
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -35,14 +37,18 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const { userId, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<RunnerProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<ProfileContextValue['saveStatus']>('idle');
 
   // นับเฉพาะการแก้ของผู้ใช้จริง ไม่นับค่าที่เพิ่งอ่านขึ้นมา เพื่อไม่ให้เขียนทับสิ่งที่อ่านมาด้วยค่าเดิม
   // ทันทีตอนเปิดแอป ต้องรีเซ็ตเป็น 0 ทุกครั้งที่ userId เปลี่ยน ไม่งั้นการแก้ไขของผู้ใช้คนก่อนจะไป
   // กันไม่ให้โหลดโปรไฟล์ของผู้ใช้คนถัดไปที่ล็อกอินเข้ามาใหม่ทำงานจริง
   const editCount = useRef(0);
+  const saveVersion = useRef(0);
 
   useEffect(() => {
     editCount.current = 0;
+    saveVersion.current += 1;
+    setSaveStatus('idle');
 
     // ยังไม่รู้สถานะล็อกอินจริงจาก Supabase รอไปก่อน ไม่ต้องพยายามโหลดด้วยข้อมูลที่อาจไม่ตรงผู้ใช้จริง
     if (authLoading) return;
@@ -78,19 +84,36 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // ข้ามรอบแรกที่ยังโหลดไม่เสร็จเสมอ ไม่งั้นค่าว่างเริ่มต้นจะทับข้อมูลจริงที่ยังอ่านไม่ขึ้น
   useEffect(() => {
     if (loading || editCount.current === 0 || userId === null) return;
-    saveProfile(profile).catch(() => {
-      // บันทึกไม่ได้ก็ยังใช้ค่าใหม่ได้ในรอบนี้ แค่ไม่ถูกจำไว้รอบหน้า
-    });
+    const version = ++saveVersion.current;
+    setSaveStatus('saving');
+    const timeout = setTimeout(() => {
+      saveProfile(profile)
+        .then(() => {
+          if (saveVersion.current === version) setSaveStatus('saved');
+        })
+        .catch(() => {
+          if (saveVersion.current === version) setSaveStatus('error');
+        });
+    }, 450);
+
+    return () => clearTimeout(timeout);
   }, [profile, loading, userId]);
 
   const update = useCallback((patch: Partial<RunnerProfile>) => {
     editCount.current += 1;
+    setSaveStatus('saving');
     setProfile((current) => ({ ...current, ...patch }));
   }, []);
 
+  const retrySave = useCallback(() => {
+    editCount.current += 1;
+    setSaveStatus('saving');
+    setProfile((current) => ({ ...current }));
+  }, []);
+
   const value = useMemo<ProfileContextValue>(
-    () => ({ profile, loading, update }),
-    [profile, loading, update]
+    () => ({ profile, loading, saveStatus, update, retrySave }),
+    [profile, loading, saveStatus, update, retrySave]
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

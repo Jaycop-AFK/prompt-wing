@@ -2,6 +2,8 @@ import { isDarkAt } from './daylight';
 import type {
   ClearWindow,
   ClearanceFactor,
+  ClearanceLevel,
+  DayOutlook,
   EpochMillis,
   EvaluateRunClearanceInput,
   HourClearance,
@@ -183,5 +185,43 @@ export function evaluateRunClearance({
       now
     ),
     pm25Unknown: currentHour === undefined || currentHour.pm25 === null,
+  };
+}
+
+const LEVEL_RANK: Record<ClearanceLevel, number> = { green: 0, yellow: 1, red: 2 };
+
+/**
+ * ภาพรวมของทั้งวัน สำหรับวางตารางซ้อมล่วงหน้าหลายวัน
+ *
+ * ต่างจาก evaluateRunClearance ที่ตัดสินจากชั่วโมงปัจจุบัน วันในอนาคตยังไม่มีชั่วโมงไหนเป็น "ตอนนี้"
+ * สิ่งที่ผู้ใช้ต้องรู้คือวันนั้นมีช่วงไหนวิ่งได้ดีที่สุด จึงดูเฉพาะชั่วโมงที่ฟ้าสว่างและยังไม่ผ่านไป
+ * แล้วเอาระดับที่ดีที่สุดในนั้น ไม่ใช่ที่แย่ที่สุด เพราะบ่ายที่ร้อนจัดไม่ได้ทำให้เช้าที่เย็นสบายวิ่งไม่ได้
+ * ส่วนปัจจัยที่รายงานมาจากชั่วโมงระดับดีที่สุดเท่านั้น จะได้บอกได้ว่าวันที่ไม่มีช่วงเขียวติดเพราะอะไร
+ */
+export function evaluateDayOutlook({ hours, sunrise, sunset, now }: EvaluateRunClearanceInput): DayOutlook {
+  const graded = gradeHourlyClearance(hours, sunrise, sunset);
+  const from = Math.max(now, sunrise);
+  const upcoming = graded
+    .map((hour, index) => ({ hour, pm25: hours[index].pm25 }))
+    .filter(({ hour }) => hour.at + HOUR_MS > from && hour.at < sunset);
+
+  if (upcoming.length === 0) {
+    return { bestLevel: null, clearWindow: null, factors: [], pm25Unknown: false, hours: graded };
+  }
+
+  const bestLevel = upcoming
+    .map(({ hour }) => hour.level)
+    .reduce((best, level) => (LEVEL_RANK[level] < LEVEL_RANK[best] ? level : best));
+  const factors = new Set<ClearanceFactor>();
+  for (const { hour } of upcoming) {
+    if (hour.level === bestLevel) hour.factors.forEach((factor) => factors.add(factor));
+  }
+
+  return {
+    bestLevel,
+    clearWindow: findClearWindow(graded, sunrise, sunset, now),
+    factors: [...factors].sort(byFactorOrder),
+    pm25Unknown: upcoming.some(({ pm25 }) => pm25 === null),
+    hours: graded,
   };
 }

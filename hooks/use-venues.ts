@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { CURATED_VENUES } from '@/services/curated-venues';
-import type { Coordinates } from '@/services/geo';
+import { distanceKm, type Coordinates } from '@/services/geo';
 import { getCurrentCoordinates, type LocationResult } from '@/services/location';
 import { fetchNearbyVenues } from '@/services/overpass';
 import {
@@ -12,19 +12,37 @@ import {
   type VenueSort,
 } from '@/services/venue';
 import { loadFavoriteVenueIds, saveFavoriteVenueIds } from '@/storage/venue-favorites';
+import { loadVenueCache, saveVenueCache } from '@/storage/venue-cache';
 
 /** รัศมีค้นหารอบตำแหน่งผู้ใช้ กว้างพอสำหรับคนที่ยอมเดินทางไปวิ่งไกลจากบ้านนิดหน่อย แต่ไม่กว้างจน
  * Overpass คืนผลช้าหรือได้ที่วิ่งที่ไกลเกินจะไปจริง */
 const SEARCH_RADIUS_METERS = 5000;
+const CACHE_LOCATION_TOLERANCE_KM = 0.75;
 
 interface State {
   status: 'loading' | 'ready' | 'error';
   venues: Venue[];
   location: LocationResult | null;
   error: string | null;
+  isRefreshing: boolean;
 }
 
-const INITIAL: State = { status: 'loading', venues: [], location: null, error: null };
+const INITIAL: State = {
+  status: 'loading',
+  venues: [],
+  location: null,
+  error: null,
+  isRefreshing: false,
+};
+
+function combineVenues(overpassVenues: Venue[], location: LocationResult): Venue[] {
+  const nearbyCurated = withinSearchRadius(
+    CURATED_VENUES,
+    location.coordinates,
+    SEARCH_RADIUS_METERS / 1000
+  );
+  return mergeCuratedVenues(overpassVenues, nearbyCurated);
+}
 
 /**
  * ที่วิ่งรอบตำแหน่งผู้ใช้ รวมสองชั้นข้อมูล (Overpass สด + กรอกเองรอบ มจพ. ปราจีนบุรี) พร้อมเรียงลำดับ
@@ -47,44 +65,76 @@ export function useVenues() {
     });
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forceRefresh = false) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setState((previous) => ({ ...previous, status: 'loading', error: null }));
+    setState((previous) =>
+      previous.venues.length > 0
+        ? { ...previous, status: 'ready', error: null, isRefreshing: true }
+        : { ...INITIAL, isRefreshing: true }
+    );
 
     try {
+      const cached = forceRefresh ? null : await loadVenueCache();
+      if (controller.signal.aborted) return;
+
+      if (cached) {
+        setState({
+          status: 'ready',
+          venues: combineVenues(cached.overpassVenues, cached.location),
+          location: cached.location,
+          error: null,
+          isRefreshing: true,
+        });
+      }
+
       const location = await getCurrentCoordinates();
+      if (controller.signal.aborted) return;
+
+      if (
+        cached?.isFresh &&
+        distanceKm(cached.location.coordinates, location.coordinates) <= CACHE_LOCATION_TOLERANCE_KM
+      ) {
+        setState({
+          status: 'ready',
+          venues: combineVenues(cached.overpassVenues, location),
+          location,
+          error: null,
+          isRefreshing: false,
+        });
+        return;
+      }
+
       const overpassVenues = await fetchNearbyVenues(
         location.coordinates,
         SEARCH_RADIUS_METERS,
-        controller.signal
+        controller.signal,
+        forceRefresh
       );
       if (controller.signal.aborted) return;
 
-      // กรอง curated ด้วยระยะค้นหาเดียวกับที่ใช้ยิง Overpass ก่อนเสมอ ไม่งั้น Venue ที่กรอกเองรอบ
-      // มจพ. ปราจีนบุรี จะโผล่ในรายการ "รอบตัว" ของผู้ใช้ทุกจังหวัดทั่วประเทศ
-      const nearbyCurated = withinSearchRadius(
-        CURATED_VENUES,
-        location.coordinates,
-        SEARCH_RADIUS_METERS / 1000
-      );
-
       setState({
         status: 'ready',
-        venues: mergeCuratedVenues(overpassVenues, nearbyCurated),
+        venues: combineVenues(overpassVenues, location),
         location,
         error: null,
+        isRefreshing: false,
+      });
+      saveVenueCache(location, overpassVenues).catch(() => {
+        // Cache เป็นตัวเร่งเท่านั้น เขียนไม่ได้ต้องไม่ทำให้ข้อมูลสดที่เพิ่งโหลดมาหายไป
       });
     } catch (error) {
       if (controller.signal.aborted) return;
 
-      setState({
-        ...INITIAL,
-        status: 'error',
-        error: error instanceof Error && error.message ? error.message : 'หาที่วิ่งใกล้ตัวไม่สำเร็จ',
-      });
+      const message =
+        error instanceof Error && error.message ? error.message : 'หาที่วิ่งใกล้ตัวไม่สำเร็จ';
+      setState((current) =>
+        current.venues.length > 0
+          ? { ...current, status: 'ready', error: message, isRefreshing: false }
+          : { ...INITIAL, status: 'error', error: message }
+      );
     }
   }, []);
 
@@ -109,12 +159,15 @@ export function useVenues() {
   const userLocation: Coordinates = state.location?.coordinates ?? { latitude: 0, longitude: 0 };
   const sorted = sortVenues(state.venues, sort, userLocation, savedIds);
 
+  const reload = useCallback(() => load(true), [load]);
+
   return {
     status: state.status,
     venues: sorted,
     location: state.location,
     error: state.error,
-    reload: load,
+    reload,
+    isRefreshing: state.isRefreshing,
     sort,
     setSort,
     savedIds,

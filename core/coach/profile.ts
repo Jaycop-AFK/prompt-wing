@@ -9,6 +9,12 @@ export const PROFILE_FIELD_RANGE = {
   weightKg: { min: 20, max: 300 },
   heightCm: { min: 80, max: 250 },
   age: { min: 5, max: 120 },
+  waistCm: { min: 40, max: 250 },
+  neckCm: { min: 20, max: 80 },
+  hipCm: { min: 50, max: 250 },
+  bodyFatPercent: { min: 2, max: 70 },
+  muscleMassKg: { min: 5, max: 150 },
+  visceralFatLevel: { min: 1, max: 30 },
 } as const;
 
 export type ProfileNumericField = keyof typeof PROFILE_FIELD_RANGE;

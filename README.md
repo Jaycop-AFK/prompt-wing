@@ -1,5 +1,20 @@
 # Welcome to your Expo app 👋
 
+## พร้อมวิ่ง: เปิดบนมือถือ
+
+โปรเจกต์กำลังใช้ Expo SDK 57 ต้องใช้ Expo Go ที่รองรับ SDK 57 จาก https://expo.dev/go
+
+```powershell
+npm install
+npm run go
+```
+
+คอมและมือถือใช้ Wi-Fi เดียวกัน แล้วสแกน QR ใหม่ คำสั่ง `npm run go` จะเลือก IP ของ Wi-Fi แทน Radmin VPN, Tailscale และอะแดปเตอร์เครื่องเสมือนโดยอัตโนมัติ ถ้าอยู่คนละเครือข่ายใช้ `npm run go:tunnel` ซึ่งเปิด Cloudflare Quick Tunnel บัญชีใน Expo Go ต้องตรงกับผลลัพธ์ของ `npx expo whoami` เพราะ Expo CLI เซ็น manifest ด้วยบัญชีที่ล็อกอินอยู่ หากต้องการแจกให้ผู้ทดสอบใช้บัญชีของตัวเอง ต้องสร้าง Development Build แทน Expo Go หยุด Metro รุ่นเก่าด้วย Ctrl+C ก่อนเริ่มคำสั่งใหม่
+
+Apple Health / Health Connect ใช้ใน Expo Go ไม่ได้ ต้องสร้าง Development Build ใหม่ ส่วนฟีเจอร์ทั่วไปยังใช้ Expo Go ได้ SDK 57 รองรับ iOS 16.4 ขึ้นไป
+
+หากติดตั้งบนเครื่องนี้โดยข้าม Skia native download เพื่อใช้ Expo Go แล้วต้องการคอมไพล์ native ในเครื่องภายหลัง ให้รัน `npm rebuild @shopify/react-native-skia` โดยไม่ตั้ง `SKIP_SKIA_DOWNLOAD` เพื่อดาวน์โหลดไฟล์ native ให้ครบก่อน EAS Build จะติดตั้ง dependencies ในสภาพแวดล้อมของตัวเอง
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started

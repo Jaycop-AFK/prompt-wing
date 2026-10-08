@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { ActivityIndicator, FlatList, Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import MapView, { Marker } from '@/components/map-view';
+import { AppIllustration } from '@/components/illustrations/app-illustration';
 import { SORT_LABEL, SORT_ORDER } from '@/components/venues/copy';
 import { VenueCard } from '@/components/venues/venue-card';
 import { Button } from '@/components/ui/button';
@@ -28,9 +29,19 @@ const MAP_DELTA = 0.03;
 export default function VenuesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { status, venues, location, error, reload, sort, setSort, savedIds, toggleSaved } =
-    useVenues();
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const {
+    status,
+    venues,
+    location,
+    error,
+    reload,
+    isRefreshing,
+    sort,
+    setSort,
+    savedIds,
+    toggleSaved,
+  } = useVenues();
+  const [viewMode, setViewMode] = useState<ViewMode>('map');
 
   const openDetail = (venueId: string) => {
     const venue = venues.find((v) => v.id === venueId);
@@ -41,6 +52,7 @@ export default function VenuesScreen() {
     return (
       <Screen title="ที่วิ่ง" scroll={false}>
         <View style={styles.center}>
+          <AppIllustration name="locationTracking" style={styles.stateIllustration} />
           <ActivityIndicator color={colors.brand} />
           <AppText variant="small" tone="muted">
             กำลังหาที่วิ่งใกล้ตัว
@@ -54,6 +66,7 @@ export default function VenuesScreen() {
     return (
       <Screen title="ที่วิ่ง">
         <Card>
+          <AppIllustration name="locationTracking" style={styles.stateIllustration} />
           <AppText variant="heading" weight="semibold">
             หาที่วิ่งใกล้ตัวไม่สำเร็จ
           </AppText>
@@ -115,6 +128,7 @@ export default function VenuesScreen() {
 
   const emptyState = (
     <Card background={colors.surfaceAlt}>
+      <AppIllustration name="locationTracking" style={styles.emptyIllustration} />
       <AppText variant="body" tone="muted">
         ยังไม่พบที่วิ่งในระยะนี้ ลองขยับตำแหน่งหรือกลับมาดูใหม่อีกครั้ง
       </AppText>
@@ -127,6 +141,29 @@ export default function VenuesScreen() {
         {toolbar}
         {fallbackNotice}
         {popularityNotice}
+        <Pressable
+          onPress={() => Linking.openURL('https://www.openstreetmap.org/copyright')}
+          accessibilityRole="link">
+          <AppText variant="caption" tone="faint">
+            ข้อมูลสถานที่ © OpenStreetMap contributors
+          </AppText>
+        </Pressable>
+        {isRefreshing ? (
+          <View style={styles.refreshingRow}>
+            <ActivityIndicator size="small" color={colors.brand} />
+            <AppText variant="caption" tone="muted">
+              แสดงข้อมูลที่บันทึกไว้ก่อน ระหว่างอัปเดตตำแหน่งและที่วิ่งล่าสุด
+            </AppText>
+          </View>
+        ) : null}
+        {error ? (
+          <Card background={colors.surfaceAlt}>
+            <AppText variant="caption" tone="muted">
+              อัปเดตข้อมูลล่าสุดไม่สำเร็จ แต่ยังใช้ข้อมูลที่บันทึกไว้ได้: {error}
+            </AppText>
+            <Button label="ลองอัปเดตอีกครั้ง" onPress={reload} variant="secondary" />
+          </Card>
+        ) : null}
 
         <Card>
           <View style={styles.routeGeneratorRow}>
@@ -147,9 +184,7 @@ export default function VenuesScreen() {
           </View>
         </Card>
 
-        {venues.length === 0 ? (
-          emptyState
-        ) : viewMode === 'map' ? (
+        {viewMode === 'map' && venues.length > 0 ? (
           <View style={styles.mapWrap}>
             <MapView
               style={styles.map}
@@ -171,21 +206,26 @@ export default function VenuesScreen() {
             </MapView>
           </View>
         ) : (
-          <ScrollView
+          <FlatList
+            data={venues}
+            keyExtractor={(venue) => venue.id}
             style={styles.list}
             contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}>
-            {venues.map((venue) => (
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={6}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            ListEmptyComponent={emptyState}
+            renderItem={({ item: venue }) => (
               <VenueCard
-                key={venue.id}
                 venue={venue}
                 userLocation={location?.coordinates ?? venue.coordinates}
                 saved={savedIds.has(venue.id)}
                 onPress={() => openDetail(venue.id)}
                 onToggleSaved={() => toggleSaved(venue.id)}
               />
-            ))}
-          </ScrollView>
+            )}
+          />
         )}
       </View>
     </Screen>
@@ -194,10 +234,13 @@ export default function VenuesScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  stateIllustration: { width: 190, height: 150, alignSelf: 'center' },
+  emptyIllustration: { width: 150, height: 110, alignSelf: 'center' },
   // ไม่มี paddingBottom ที่นี่ เพราะโหมดรายการกับโหมดแผนที่ต้องการระยะขอบล่างคนละแบบ (ดูคอมเมนต์
   // ที่ listContent และ mapWrap) ใส่ไว้ตรงนี้อีกชั้นจะซ้อนกับที่ใส่ไว้เฉพาะโหมดจนขอบล่างหนาไม่เท่ากัน
   body: { flex: 1, paddingTop: spacing.lg, paddingHorizontal: spacing.lg, gap: spacing.md },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  refreshingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   sortRow: { flex: 1, flexDirection: 'row', gap: spacing.sm },
   sortChip: {
     flex: 1,

@@ -1,15 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import MapView, { Polyline } from 'react-native-maps';
 
 import { formatDistance, formatDuration, formatPace } from '@/components/format';
+import MapView, { Polyline, type MapViewRef } from '@/components/map-view';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { SummaryStat } from '@/components/ui/summary-stat';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
+import { describeSessionTarget } from '@/core/coach';
 import { useTheme } from '@/hooks/use-theme';
 import { getSession, type SessionRecord } from '@/storage/session-storage';
 
@@ -26,7 +27,7 @@ export default function RunSummaryScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const params = useLocalSearchParams<{ id?: string }>();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapViewRef>(null);
 
   const [status, setStatus] = useState<ScreenStatus>('loading');
   const [record, setRecord] = useState<SessionRecord | null>(null);
@@ -82,17 +83,43 @@ export default function RunSummaryScreen() {
     <Screen title="สรุปการวิ่ง" back>
       <Card>
         <AppText variant="title" weight="bold">
-          จบการวิ่งแล้ว
+          {record.runMode === 'free'
+            ? 'การวิ่งอิสระของคุณ'
+            : record.runMode === 'program' && record.programName
+              ? record.programName
+              : 'การวิ่งตามเป้าของคุณ'}
         </AppText>
+        {record.sessionTarget ? (
+          <AppText variant="small" tone="muted">
+            เป้าหมายรอบนี้ {describeSessionTarget(record.sessionTarget)}
+          </AppText>
+        ) : null}
         <View style={styles.statsGrid}>
           <SummaryStat label="ระยะทาง" value={formatDistance(record.distanceKm)} />
-          <SummaryStat label="เวลา" value={formatDuration(record.elapsedSeconds)} />
+          <SummaryStat label="เวลาเคลื่อนไหว" value={formatDuration(record.movingSeconds)} />
         </View>
         <View style={styles.statsGrid}>
+          <SummaryStat label="เวลารวม" value={formatDuration(record.elapsedSeconds)} />
           <SummaryStat
             label="pace เฉลี่ย"
             value={record.paceSecPerKm === null ? '—' : `${formatPace(record.paceSecPerKm)} /กม.`}
           />
+        </View>
+        <View style={styles.statsGrid}>
+          <SummaryStat
+            label="pace เร็วที่สุด"
+            value={record.bestPaceSecPerKm === null ? '—' : `${formatPace(record.bestPaceSecPerKm)} /กม.`}
+          />
+          <SummaryStat
+            label="ความเร็วเฉลี่ย"
+            value={
+              record.movingSeconds > 0
+                ? `${((record.distanceKm * 3600) / record.movingSeconds).toFixed(1)} กม./ชม.`
+                : '—'
+            }
+          />
+        </View>
+        <View style={styles.statsGrid}>
           <SummaryStat label="แคลอรี (ประมาณ)" value={`${record.calories} แคลอรี`} />
         </View>
       </Card>

@@ -1,6 +1,8 @@
-import type { FormScore } from '@/core/coach';
+import type { FormScore, SessionTarget } from '@/core/coach';
 
-import type { Split, TrackPoint } from './geo';
+import type { Coordinates, Split } from './geo';
+
+export type RunMode = 'free' | 'goal' | 'program';
 
 /**
  * การวิ่งหนึ่งครั้งที่บันทึกไว้แล้ว
@@ -16,12 +18,19 @@ export interface SessionRecord {
   finishedAt: number;
   distanceKm: number;
   elapsedSeconds: number;
+  /** เวลาที่เคลื่อนไหวจริง ไม่รวมช่วง manual/auto pause */
+  movingSeconds: number;
   /** null ถ้าระยะทางเป็นศูนย์ (คำนวณ pace ไม่ได้) */
   paceSecPerKm: number | null;
+  bestPaceSecPerKm: number | null;
+  runMode: RunMode;
+  programName: string | null;
+  sessionTarget: SessionTarget | null;
   calories: number;
   formScore: FormScore;
   splits: Split[];
-  route: TrackPoint[];
+  /** เส้นที่วาดบนแผนที่ อาจผ่าน Map Matching แล้วจึงไม่ผูกกับ timestamp ของ GPS ดิบ */
+  route: Coordinates[];
 }
 
 /** Session ที่ยังไม่ได้บันทึก จึงยังไม่มี id ที่ฐานข้อมูลเป็นคนกำหนดให้ */

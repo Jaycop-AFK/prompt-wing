@@ -1,6 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { amenitiesFromTags, buildQuery, toVenue, type OverpassElement } from './overpass';
+import {
+  amenitiesFromTags,
+  buildQuery,
+  fetchNearbyVenues,
+  toVenue,
+  type OverpassElement,
+} from './overpass';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('buildQuery', () => {
   it('ใส่พิกัดและรัศมีลงในตัวกรอง around ของทุกป้ายที่ค้นหา', () => {
@@ -107,5 +118,52 @@ describe('toVenue', () => {
     const first = toVenue(element)!.mockPopularity;
     const second = toVenue(element)!.mockPopularity;
     expect(first).toBe(second);
+  });
+});
+
+describe('fetchNearbyVenues caching', () => {
+  it('การเปิดที่วิ่งซ้ำในพื้นที่เดิมต้องคืนข้อมูลเดิมโดยไม่รอ Overpass รอบใหม่', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'node',
+            id: 987654,
+            lat: 14.164,
+            lon: 101.3452,
+            tags: { leisure: 'park', name: 'สวนทดสอบ cache' },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const coordinates = { latitude: 14.164321, longitude: 101.345678 };
+    const first = await fetchNearbyVenues(coordinates, 5000);
+    const second = await fetchNearbyVenues(coordinates, 5000);
+
+    expect(second).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('ยกเลิกคำขอที่ค้างเกิน 15 วินาทีแทนการปล่อยหน้า loading ค้างตาม timeout 25 วินาทีของเซิร์ฟเวอร์', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        });
+      })
+    );
+
+    const request = fetchNearbyVenues({ latitude: 13.7563, longitude: 100.5018 }, 5000);
+    const verdict = expect(request).rejects.toThrow(
+      'บริการค้นหาที่วิ่งใช้เวลานานเกิน 15 วินาที'
+    );
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    await verdict;
   });
 });

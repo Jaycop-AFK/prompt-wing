@@ -1,9 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 
 import { AMENITY_LABEL, AVAILABILITY_LABEL, formatDistanceFromUser } from '@/components/venues/copy';
+import MapView, { Marker } from '@/components/map-view';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';

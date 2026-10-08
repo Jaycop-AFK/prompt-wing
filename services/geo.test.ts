@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeSplits, distanceKm, trackDistanceKm, type Coordinates, type TrackPoint } from './geo';
+import {
+  averagePaceSecPerKm,
+  bestPaceSecPerKm,
+  computeSplits,
+  currentPaceSecPerKm,
+  distanceKm,
+  isTrackPointUsable,
+  runSaveReadiness,
+  trackDistanceKm,
+  type Coordinates,
+  type TrackPoint,
+} from './geo';
 
 // กรุงเทพฯ กับเชียงใหม่ ระยะทางตรงจริงประมาณ 580-590 กม. ใช้เป็นค่าอ้างอิงตรวจสูตร haversine
 const BANGKOK: Coordinates = { latitude: 13.7563, longitude: 100.5018 };
@@ -57,6 +68,80 @@ describe('trackDistanceKm', () => {
   it('จุดที่ซ้ำตำแหน่งเดิมไม่เพิ่มระยะทาง', () => {
     const a: Coordinates = { latitude: 14.05, longitude: 101.37 };
     expect(trackDistanceKm([a, a, a])).toBe(0);
+  });
+});
+
+describe('live run GPS guardrails', () => {
+  it('กรณีจากภาพ 0.01 กม. ใน 2 วินาที ยังห้ามแสดง pace หรือบันทึกเป็นการวิ่งจริง', () => {
+    expect(averagePaceSecPerKm(0.01, 2)).toBeNull();
+    expect(runSaveReadiness(0.01, 2, 2)).not.toBe('ready');
+  });
+
+  it('เมื่อมีระยะ เวลา และจุด GPS เพียงพอ จึงคำนวณ pace และบันทึกได้', () => {
+    expect(averagePaceSecPerKm(0.05, 20)).toBe(400);
+    expect(runSaveReadiness(0.05, 20, 4)).toBe('ready');
+  });
+
+  it('ตัดจุด GPS ที่ความแม่นยำแย่หรือกระโดดเร็วเกินมนุษย์วิ่ง', () => {
+    const first: TrackPoint = {
+      latitude: 14.05,
+      longitude: 101.37,
+      at: 10_000,
+      accuracyMeters: 5,
+    };
+    const inaccurate: TrackPoint = {
+      latitude: 14.0501,
+      longitude: 101.3701,
+      at: 13_000,
+      accuracyMeters: 80,
+    };
+    const teleported: TrackPoint = {
+      latitude: 14.06,
+      longitude: 101.38,
+      at: 13_000,
+      accuracyMeters: 5,
+    };
+
+    expect(isTrackPointUsable(inaccurate, first)).toBe(false);
+    expect(isTrackPointUsable(teleported, first)).toBe(false);
+  });
+});
+
+describe('live pace metrics', () => {
+  const steadyTrack: TrackPoint[] = Array.from({ length: 8 }, (_, index) => ({
+    latitude: 14.05,
+    longitude: 101.37 + index * 0.0001,
+    at: index * 3_000,
+  }));
+
+  it('ยังไม่แสดง pace ปัจจุบันถ้าจุดหรือระยะล่าสุดน้อยเกินไป', () => {
+    expect(currentPaceSecPerKm(steadyTrack.slice(0, 2))).toBeNull();
+  });
+
+  it('pace ปัจจุบันคำนวณจากช่วงล่าสุด ไม่เอาค่าเฉลี่ยทั้งการวิ่งมาปน', () => {
+    const oldPoint: TrackPoint = {
+      latitude: 14.05,
+      longitude: 101.36,
+      at: -120_000,
+    };
+    expect(currentPaceSecPerKm([oldPoint, ...steadyTrack])).toBeCloseTo(
+      currentPaceSecPerKm(steadyTrack)!,
+      5
+    );
+  });
+
+  it('หา pace ที่ดีที่สุดจากช่วงต่อเนื่องที่มีข้อมูลมากพอ ไม่ใช้ GPS spike จุดเดียว', () => {
+    const slowerThenFaster: TrackPoint[] = [
+      { latitude: 14.05, longitude: 101.37, at: 0 },
+      { latitude: 14.05, longitude: 101.3702, at: 6_000 },
+      { latitude: 14.05, longitude: 101.3704, at: 12_000 },
+      { latitude: 14.05, longitude: 101.3708, at: 18_000 },
+      { latitude: 14.05, longitude: 101.3712, at: 24_000 },
+    ];
+
+    const best = bestPaceSecPerKm(slowerThenFaster);
+    expect(best).not.toBeNull();
+    expect(best!).toBeLessThan(currentPaceSecPerKm(slowerThenFaster.slice(0, 3))!);
   });
 });
 

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
 import {
   BMI_ADVICE,
@@ -12,6 +12,9 @@ import {
   SEX_LABEL,
   SEX_ORDER,
 } from '@/components/profile/copy';
+import { BodyTrend } from '@/components/profile/body-trend';
+import { MeasurementGuide } from '@/components/profile/measurement-guide';
+import { PlanStatusCard } from '@/components/plus/plan-status-card';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
@@ -21,6 +24,7 @@ import { fontFamily, radius, spacing } from '@/constants/theme';
 import {
   bmiCategoryOf,
   BMI_BANDS,
+  calculateNavyBodyFat,
   calculateBmi,
   PROFILE_FIELD_RANGE,
   type ProfileNumericField,
@@ -28,6 +32,11 @@ import {
 } from '@/core/coach';
 import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
+import { nativeHealthProvider, syncNativeBodyMetrics } from '@/services/health-sync';
+import {
+  loadBodyMeasurementHistory,
+  type BodyMeasurementHistoryEntry,
+} from '@/storage/body-measurement-storage';
 
 /** ช่วงที่แถบ BMI แสดง ต่ำกว่า 15 หรือสูงกว่า 40 พบได้น้อยมากและทำให้แถบบีบจนอ่านไม่ออก
  * เป็นเรื่องของการแสดงผลอย่างเดียว ไม่ใช่เกณฑ์ทางสุขภาพ เกณฑ์จริงอยู่ใน core/coach/bmi.ts */
@@ -49,27 +58,149 @@ const FIELDS: { key: NumericField; label: string; unit: string }[] = [
   { key: 'age', label: 'อายุ', unit: 'ปี' },
 ];
 
+const COMPOSITION_FIELDS = {
+  circumference: [
+    { key: 'waistCm', label: 'รอบเอว', unit: 'ซม.' },
+    { key: 'neckCm', label: 'รอบคอ', unit: 'ซม.' },
+  ],
+  bia: [
+    { key: 'bodyFatPercent', label: 'ไขมัน', unit: '%' },
+    { key: 'muscleMassKg', label: 'กล้ามเนื้อ', unit: 'กก.' },
+    { key: 'visceralFatLevel', label: 'ไขมันช่องท้อง', unit: 'ระดับ' },
+  ],
+} satisfies Record<string, { key: NumericField; label: string; unit: string }[]>;
+
+const BODY_MEASUREMENT_FIELDS = new Set<NumericField>([
+  'weightKg',
+  'heightCm',
+  'waistCm',
+  'neckCm',
+  'hipCm',
+  'bodyFatPercent',
+  'muscleMassKg',
+  'visceralFatLevel',
+]);
+
+const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+function formatMeasuredAt(value: string | null): string {
+  if (!value) return 'ยังไม่มีข้อมูล';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'ยังไม่มีข้อมูล';
+  return `${date.getDate()} ${THAI_MONTHS[date.getMonth()]} ${date.getFullYear() + 543} · ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function ProfileScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { colors } = useTheme();
-  const { profile, update } = useProfile();
+  const { profile, saveStatus, retrySave, update } = useProfile();
+  const compact = width < 420;
+  const [history, setHistory] = useState<BodyMeasurementHistoryEntry[]>([]);
+  const [syncingHealth, setSyncingHealth] = useState(false);
+
+  useEffect(() => {
+    if (saveStatus === 'saving' || saveStatus === 'error') return;
+    let cancelled = false;
+    loadBodyMeasurementHistory()
+      .then((entries) => {
+        if (!cancelled) setHistory(entries);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [saveStatus]);
 
   const bmi = calculateBmi(profile.weightKg, profile.heightCm);
   const category = bmi === null ? null : bmiCategoryOf(bmi);
+  const navyBodyFat = calculateNavyBodyFat({
+    sex: profile.sex,
+    heightCm: profile.heightCm,
+    waistCm: profile.waistCm,
+    neckCm: profile.neckCm,
+    hipCm: profile.hipCm,
+  });
+  const displayedBodyFat = profile.bodyCompositionMethod === 'bia' ? profile.bodyFatPercent : navyBodyFat;
 
   // เก็บสิ่งที่ผู้ใช้กำลังพิมพ์อยู่แยกจากค่าที่บันทึกจริง เพราะระหว่างพิมพ์ "175" จะผ่าน "1" กับ "17"
   // ซึ่งอยู่นอกช่วงที่ยอมรับทั้งคู่ ถ้าปฏิเสธทันทีผู้ใช้จะพิมพ์เลขสองหลักขึ้นไปไม่ได้เลย
   const [drafts, setDrafts] = useState<Partial<Record<NumericField, string>>>({});
 
   const setNumber = (key: NumericField, text: string) => {
-    const digits = text.replace(/[^0-9]/g, '');
+    const normalized = text.replace(',', '.');
+    const digits = key === 'age'
+      ? normalized.replace(/[^0-9]/g, '')
+      : normalized.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
     setDrafts((current) => ({ ...current, [key]: digits }));
 
     const { min, max } = PROFILE_FIELD_RANGE[key];
     const value = Number(digits);
     // บันทึกเฉพาะค่าที่อยู่ในช่วงที่ที่เก็บยอมรับจริง ไม่งั้นค่าจะหายไปเงียบ ๆ ตอนเปิดแอปใหม่
     const valid = digits !== '' && value >= min && value <= max;
-    update({ [key]: digits === '' ? null : valid ? value : null } as Partial<RunnerProfile>);
+    if (digits === '') {
+      update({ [key]: null } as Partial<RunnerProfile>);
+    } else if (valid) {
+      update({
+        [key]: value,
+        ...(BODY_MEASUREMENT_FIELDS.has(key) ? { bodyMeasuredAt: new Date().toISOString() } : {}),
+      } as Partial<RunnerProfile>);
+    }
+  };
+
+  const fillDemoHealthData = (source: 'Apple Health' | 'Google Fit') => {
+    const bodyFatPercent = profile.sex === 'female' ? 27.4 : 19.8;
+    const muscleMassKg = profile.weightKg ? Number((profile.weightKg * 0.42).toFixed(1)) : 28.6;
+    update({
+      bodyCompositionMethod: 'bia',
+      bodyFatPercent,
+      muscleMassKg,
+      visceralFatLevel: 7,
+      bodyMeasuredAt: new Date().toISOString(),
+    });
+    setDrafts((current) => ({ ...current, bodyFatPercent: String(bodyFatPercent), muscleMassKg: String(muscleMassKg), visceralFatLevel: '7' }));
+    Alert.alert('ซิงก์ข้อมูลจำลองแล้ว', `${source} ในหน้านี้เป็น Demo ยังไม่ได้อ่านข้อมูลสุขภาพจริงจากเครื่อง`);
+  };
+
+  const syncRealHealthData = async () => {
+    if (syncingHealth) return;
+    setSyncingHealth(true);
+    try {
+      const metrics = await syncNativeBodyMetrics();
+      const weightKg = metrics.weightKg !== null && metrics.weightKg >= PROFILE_FIELD_RANGE.weightKg.min && metrics.weightKg <= PROFILE_FIELD_RANGE.weightKg.max
+        ? Number(metrics.weightKg.toFixed(1))
+        : null;
+      const bodyFatPercent = metrics.bodyFatPercent !== null && metrics.bodyFatPercent >= PROFILE_FIELD_RANGE.bodyFatPercent.min && metrics.bodyFatPercent <= PROFILE_FIELD_RANGE.bodyFatPercent.max
+        ? Number(metrics.bodyFatPercent.toFixed(1))
+        : null;
+      if (weightKg === null && bodyFatPercent === null && metrics.leanBodyMassKg === null) {
+        Alert.alert('ยังไม่มีข้อมูล', `ไม่พบข้อมูลร่างกายใน ${metrics.source} ช่วง 1 ปีล่าสุด`);
+        return;
+      }
+
+      update({
+        bodyCompositionMethod: 'bia',
+        ...(weightKg === null ? {} : { weightKg }),
+        ...(bodyFatPercent === null ? {} : { bodyFatPercent }),
+        bodyMeasuredAt: metrics.measuredAt,
+      });
+      setDrafts((current) => ({
+        ...current,
+        ...(weightKg === null ? {} : { weightKg: String(weightKg) }),
+        ...(bodyFatPercent === null ? {} : { bodyFatPercent: String(bodyFatPercent) }),
+      }));
+      const imported = [weightKg === null ? null : 'น้ำหนัก', bodyFatPercent === null ? null : 'ไขมัน']
+        .filter(Boolean)
+        .join(' และ ');
+      Alert.alert(
+        'ซิงก์สำเร็จ',
+        `${metrics.source}: ${imported || 'พบเฉพาะมวลไร้ไขมัน'}${metrics.leanBodyMassKg === null ? '' : '\nมวลไร้ไขมันไม่ถูกแทนเป็นมวลกล้ามเนื้อ เพราะเป็นคนละค่า'}`
+      );
+    } catch (error) {
+      Alert.alert('เชื่อมต่อไม่สำเร็จ', error instanceof Error ? error.message : 'ลองใหม่อีกครั้ง');
+    } finally {
+      setSyncingHealth(false);
+    }
   };
 
   const draftOf = (key: NumericField): string => {
@@ -100,13 +231,46 @@ export default function ProfileScreen() {
 
   return (
     <Screen title="โปรไฟล์" headerRight={<ThemeToggle />}>
+      <PlanStatusCard />
+
       <Card>
-        <AppText variant="heading" weight="semibold">
-          ข้อมูลร่างกาย
-        </AppText>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading" weight="semibold">ข้อมูลร่างกาย</AppText>
+          <Pressable
+            disabled={saveStatus !== 'error'}
+            onPress={retrySave}
+            accessibilityRole={saveStatus === 'error' ? 'button' : 'text'}
+            accessibilityLabel={saveStatus === 'error' ? 'บันทึกไม่สำเร็จ แตะเพื่อลองใหม่' : undefined}
+            style={styles.saveStatus}>
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    saveStatus === 'error'
+                      ? colors.clearRed
+                      : saveStatus === 'saving'
+                        ? colors.clearYellow
+                        : colors.clearGreen,
+                },
+              ]}
+            />
+            <AppText
+              variant="caption"
+              color={saveStatus === 'error' ? colors.clearRed : colors.textMuted}>
+              {saveStatus === 'saving'
+                ? 'กำลังบันทึก…'
+                : saveStatus === 'saved'
+                  ? 'บันทึกแล้ว'
+                  : saveStatus === 'error'
+                    ? 'บันทึกไม่สำเร็จ · ลองใหม่'
+                    : 'บันทึกอัตโนมัติ'}
+            </AppText>
+          </Pressable>
+        </View>
         <AppText variant="small" tone="muted">
           น้ำหนักกับส่วนสูงใช้คำนวณ BMI และน้ำหนักใช้คำนวณแคลอรีให้ใกล้เคียงตัวคุณจริง
-          ส่วนอายุกับเพศยังไม่ถูกนำไปคำนวณอะไรในเวอร์ชันนี้ เก็บไว้ในเครื่องเท่านั้น ไม่ได้ส่งไปไหน
+          อายุใช้ปรับคำแนะนำ ส่วนเพศใช้เฉพาะสูตรประมาณไขมัน ข้อมูลบันทึกในบัญชีของคุณ
         </AppText>
 
         {FIELDS.map(({ key, label, unit }) => {
@@ -183,9 +347,12 @@ export default function ProfileScreen() {
       </Card>
 
       <Card>
-        <AppText variant="heading" weight="semibold">
-          BMI
-        </AppText>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading" weight="semibold">BMI และองค์ประกอบร่างกาย</AppText>
+          <AppText variant="caption" tone="faint" align="right">
+            วัดล่าสุด {formatMeasuredAt(profile.bodyMeasuredAt)}
+          </AppText>
+        </View>
 
         {bmi === null || category === null ? (
           <AppText variant="body" tone="muted">
@@ -242,6 +409,83 @@ export default function ProfileScreen() {
             </AppText>
           </>
         )}
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={styles.methodRow}>
+          {([
+            ['circumference', 'วัดสัดส่วน'],
+            ['bia', 'กรอกจากเครื่องชั่ง'],
+          ] as const).map(([method, label]) => {
+            const active = profile.bodyCompositionMethod === method;
+            return (
+              <Pressable
+                key={method}
+                onPress={() => update({ bodyCompositionMethod: method })}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={[styles.methodChip, { backgroundColor: active ? colors.brandSoft : colors.surfaceAlt, borderColor: active ? colors.brand : colors.border }]}>
+                <AppText variant="small" weight="semibold" color={active ? colors.brandStrong : colors.text}>{label}</AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.compGrid}>
+          {[
+            ...COMPOSITION_FIELDS[profile.bodyCompositionMethod],
+            ...(profile.bodyCompositionMethod === 'circumference' && profile.sex === 'female'
+              ? [{ key: 'hipCm' as NumericField, label: 'รอบสะโพก', unit: 'ซม.' }]
+              : []),
+          ].map(({ key, label, unit }) => (
+            <View key={key} style={[styles.compField, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+              <AppText variant="caption" tone="muted">{label}</AppText>
+              <View style={styles.compInputRow}>
+                <TextInput
+                  value={draftOf(key)}
+                  onChangeText={(text) => setNumber(key, text)}
+                  keyboardType="decimal-pad"
+                  placeholder="—"
+                  placeholderTextColor={colors.textFaint}
+                  accessibilityLabel={label}
+                  style={[styles.compInput, { color: colors.text }]}
+                />
+                <AppText variant="caption" tone="muted">{unit}</AppText>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {profile.bodyCompositionMethod === 'circumference' && !profile.sex ? (
+          <AppText variant="caption" tone="muted">เลือกเพศด้านบนเพื่อคำนวณ และระบบจะแสดงรอบสะโพกเฉพาะผู้หญิง</AppText>
+        ) : null}
+
+        {profile.bodyCompositionMethod === 'circumference' ? (
+          <MeasurementGuide female={profile.sex === 'female'} />
+        ) : null}
+
+        <View style={[styles.summary, compact && styles.summaryCompact, { backgroundColor: colors.brandSoft }]}>
+          <View style={compact && styles.summaryItem}><AppText variant="caption" tone="muted">BMI</AppText><AppText weight="bold">{bmi?.toFixed(1) ?? '—'}</AppText></View>
+          <View style={compact && styles.summaryItem}><AppText variant="caption" tone="muted">ไขมัน</AppText><AppText weight="bold">{displayedBodyFat ? `${displayedBodyFat.toFixed(1)}%` : '—'}</AppText></View>
+          <View style={compact && styles.summaryItem}><AppText variant="caption" tone="muted">กล้ามเนื้อ</AppText><AppText weight="bold">{profile.muscleMassKg ? `${profile.muscleMassKg} กก.` : '—'}</AppText></View>
+          <View style={compact && styles.summaryItem}><AppText variant="caption" tone="muted">ช่องท้อง</AppText><AppText weight="bold">{profile.visceralFatLevel ?? '—'}</AppText></View>
+        </View>
+
+        <View style={styles.syncRow}>
+          <AppText variant="caption" tone="muted">แหล่งข้อมูลสุขภาพ</AppText>
+          <View style={styles.syncButtons}>
+            <Pressable
+              disabled={syncingHealth}
+              onPress={syncRealHealthData}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: syncingHealth }}
+              style={[styles.syncButton, { borderColor: colors.brand, backgroundColor: colors.brandSoft }, syncingHealth && styles.syncDisabled]}>
+              <AppText variant="caption" weight="semibold" color={colors.brandStrong}>{syncingHealth ? 'กำลังเชื่อมต่อ…' : `เชื่อม ${nativeHealthProvider}`}</AppText>
+            </Pressable>
+            <Pressable onPress={() => fillDemoHealthData('Apple Health')} style={[styles.syncButton, { borderColor: colors.border }]}><AppText variant="caption">ใช้ข้อมูล Demo</AppText></Pressable>
+          </View>
+        </View>
+        <BodyTrend entries={history} bmiColor={colors.brand} fatColor={colors.clearYellow} />
+        <AppText variant="caption" tone="faint">ค่าจากสัดส่วนเป็นเพียงค่าประมาณ ไม่ใช่ผลวินิจฉัยทางการแพทย์</AppText>
       </Card>
 
       <Card>
@@ -309,6 +553,9 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
+  saveStatus: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 32 },
+  statusDot: { width: 7, height: 7, borderRadius: radius.pill },
   field: { gap: spacing.xs },
   fieldRow: {
     flexDirection: 'row',
@@ -350,4 +597,18 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: 2,
   },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: spacing.xs },
+  methodRow: { flexDirection: 'row', gap: spacing.sm },
+  methodChip: { flex: 1, alignItems: 'center', borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: spacing.sm },
+  compGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  compField: { flexGrow: 1, flexBasis: '45%', borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  compInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  compInput: { minWidth: 48, paddingVertical: 2, fontFamily: fontFamily.semibold, fontSize: 18 },
+  summary: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, borderRadius: radius.md, padding: spacing.md },
+  summaryCompact: { flexWrap: 'wrap' },
+  summaryItem: { flexBasis: '44%', flexGrow: 1 },
+  syncRow: { gap: spacing.xs },
+  syncButtons: { flexDirection: 'row', gap: spacing.sm },
+  syncButton: { flex: 1, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, padding: spacing.sm },
+  syncDisabled: { opacity: 0.55 },
 });

@@ -86,12 +86,23 @@ export interface DailyGoal {
 /** เพศทางสรีรวิทยา ใช้ประกอบการแปลผลเท่านั้น ไม่ได้ใช้ตัดสินใจอะไรที่ต่างกันในเวอร์ชันนี้ */
 export type Sex = 'male' | 'female';
 
+export type BodyCompositionMethod = 'circumference' | 'bia';
+
 /** ข้อมูลตัวผู้ใช้ที่กรอกเองในหน้าโปรไฟล์ ทุกช่องเป็นทางเลือก กรอกทีหลังได้ */
 export interface RunnerProfile {
   weightKg: number | null;
   heightCm: number | null;
   age: number | null;
   sex: Sex | null;
+  bodyCompositionMethod: BodyCompositionMethod;
+  waistCm: number | null;
+  neckCm: number | null;
+  hipCm: number | null;
+  bodyFatPercent: number | null;
+  muscleMassKg: number | null;
+  visceralFatLevel: number | null;
+  /** เวลาที่ผู้ใช้กรอกหรือซิงก์ค่าร่างกายล่าสุด เป็น ISO 8601 */
+  bodyMeasuredAt: string | null;
   objective: Objective;
 }
 
@@ -161,4 +172,83 @@ export interface SessionSummary {
   estimatedMinutes: number;
   estimatedKcal: number;
   recommendedPaceSecPerKm: number;
+}
+
+/** ระยะที่แผนซ้อมพาผู้ใช้ไปให้ถึง */
+export type PlanGoal = '5k' | '10k';
+
+/** ชนิดของการซ้อมหนึ่งครั้งในแผนซ้อม */
+export type WorkoutKind = 'easy' | 'steady' | 'intervals' | 'long' | 'test';
+
+/** การตั้งค่าแผนซ้อมที่ผู้ใช้เลือกเอง */
+export interface TrainingPlanSettings {
+  goal: PlanGoal;
+  /** วันที่สะดวกซ้อมตาม Date.getDay() (0 = อาทิตย์) ไม่ซ้ำกัน เรียงจากน้อยไปมาก */
+  runDays: number[];
+  /** เวลาที่ตั้งใจออกไปซ้อม นับเป็นนาทีจากเที่ยงคืน เช่น 360 คือ 06:00 */
+  preferredMinuteOfDay: number;
+  /** เวลาที่เริ่มแผน วันของเวลานี้คือวันแรกของสัปดาห์ที่ 1 */
+  startedAt: EpochMillis;
+}
+
+/** การวิ่งที่จบแล้ว ย่อเหลือแค่สิ่งที่แผนซ้อมใช้ตัดสินว่าซ้อมไปได้แค่ไหน */
+export interface CompletedRun {
+  at: EpochMillis;
+  distanceKm: number;
+  movingSeconds: number;
+}
+
+/** การซ้อมหนึ่งครั้งในสัปดาห์ของแผนซ้อม */
+export interface PlannedWorkout {
+  kind: WorkoutKind;
+  target: SessionTarget;
+  /** เที่ยงคืนของวันที่วางไว้ให้ซ้อม */
+  scheduledOn: EpochMillis;
+  /** ส่วนที่ทำได้จริง 0 ถึง 1 จากการวิ่งที่จับคู่กับการซ้อมนี้ 0 เมื่อยังไม่มีการวิ่งที่นับได้ */
+  completion: number;
+}
+
+/** สิ่งที่แผนซ้อมทำกับระดับของสัปดาห์ถัดไป หลังทบทวนสัปดาห์ที่จบแล้ว */
+export type WeekAdjustment = 'progress' | 'repeat' | 'stepBack';
+
+/** ผลทบทวนสัปดาห์ที่จบไปแล้ว เป็นเหตุผลของระดับในสัปดาห์ถัดไป */
+export interface WeekReview {
+  /** ระดับของสัปดาห์ที่ถูกทบทวน */
+  level: number;
+  /** ส่วนที่ซ้อมได้จริงของทั้งสัปดาห์ 0 ถึง 1 */
+  completion: number;
+  adjustment: WeekAdjustment;
+}
+
+/** สัปดาห์ปัจจุบันของแผนซ้อม ระดับคำนวณใหม่จากประวัติการวิ่งทุกครั้ง ไม่ได้เก็บไว้ */
+export interface TrainingWeek {
+  /** สัปดาห์ที่เท่าไรนับจากวันเริ่มแผน เริ่มที่ 1 */
+  weekNumber: number;
+  /** ระดับความหนักของสัปดาห์นี้ 1 ถึง totalLevels */
+  level: number;
+  totalLevels: number;
+  startsAt: EpochMillis;
+  /** เที่ยงคืนหลังวันสุดท้ายของสัปดาห์ */
+  endsAt: EpochMillis;
+  /** เรียงตามวันที่วางไว้ */
+  workouts: PlannedWorkout[];
+  /** ส่วนที่ซ้อมได้แล้วของสัปดาห์นี้ 0 ถึง 1 */
+  completion: number;
+  /** ทบทวนสัปดาห์ก่อนหน้า null ในสัปดาห์แรก */
+  review: WeekReview | null;
+  /** เคยซ้อมสัปดาห์ของระดับสุดท้ายได้ครบแล้วอย่างน้อยหนึ่งครั้ง */
+  finished: boolean;
+}
+
+/** ภาพรวมช่วงเวลาวิ่งของทั้งวัน ใช้กับวันในอนาคตที่ยังไม่มีคำว่า "ตอนนี้" ให้ตัดสิน */
+export interface DayOutlook {
+  /** ระดับที่ดีที่สุดของชั่วโมงกลางวันที่ยังไม่ผ่านไป null เมื่อไม่เหลือชั่วโมงให้ประเมิน */
+  bestLevel: ClearanceLevel | null;
+  clearWindow: ClearWindow | null;
+  /** ปัจจัยของชั่วโมงที่อยู่ในระดับดีที่สุด ว่างเปล่าเมื่อเป็นสีเขียว เรียงตามลำดับคงที่ */
+  factors: ClearanceFactor[];
+  /** ชั่วโมงกลางวันที่เหลืออยู่มีบางชั่วโมงไม่มีค่า PM2.5 */
+  pm25Unknown: boolean;
+  /** ผลตัดสินรายชั่วโมงของทั้งวัน ใช้เช็คเวลาที่ผู้ใช้ตั้งใจจะวิ่ง */
+  hours: HourClearance[];
 }

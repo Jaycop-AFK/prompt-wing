@@ -12,7 +12,12 @@ function session(overrides: Partial<SessionRecord> & { finishedAt: number }): Se
     id: overrides.finishedAt,
     distanceKm: 5,
     elapsedSeconds: 1800,
+    movingSeconds: 1800,
     paceSecPerKm: 360,
+    bestPaceSecPerKm: 330,
+    runMode: 'free',
+    programName: null,
+    sessionTarget: null,
     calories: 300,
     formScore: {
       hasEnoughData: true,

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import MapView, { Marker, Polyline, type MapViewRef } from '@/components/map-view';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
@@ -28,7 +28,7 @@ export default function RouteGeneratorScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<MapViewRef | null>(null);
   // MapView ตัวจริงพร้อมรับคำสั่ง fitToCoordinates ต่อเมื่อโหลดเสร็จแล้วเท่านั้น (onMapReady)
   // เรียกก่อนหน้านั้นจะเงียบ ๆ ไม่มีผล ต้องแยกสองกรณี คือครั้งแรกที่ยังไม่เคย mount (รอ onMapReady
   // จัดการเอง) กับครั้งถัดไปที่แผนที่พร้อมอยู่แล้วตอนกดสร้างเส้นทางใหม่ด้วยระยะอื่น (เรียกเองตรงนี้เลย
@@ -138,6 +138,13 @@ export default function RouteGeneratorScreen() {
               <Marker coordinate={origin} pinColor={colors.brand} title="จุดเริ่มต้น/สิ้นสุด" />
             </MapView>
           </View>
+          <Pressable
+            onPress={() => Linking.openURL('https://www.graphhopper.com/')}
+            accessibilityRole="link">
+            <AppText variant="caption" tone="faint">
+              เส้นทางโดย GraphHopper · ข้อมูลถนน © OpenStreetMap contributors
+            </AppText>
+          </Pressable>
         </>
       ) : null}
     </Screen>

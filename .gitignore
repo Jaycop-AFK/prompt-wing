@@ -46,3 +46,6 @@ app-example
 # skills ที่ติดตั้งจาก skills-lock.json สร้างใหม่ได้ ไม่ต้องเก็บใน git
 .agents/
 .claude/skills/
+
+# local Supabase CLI link/cache (contains machine-specific connection metadata)
+supabase/.temp/

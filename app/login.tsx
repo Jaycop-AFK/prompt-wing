@@ -11,6 +11,7 @@ import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { getAuthErrorMessage, validateCredentials } from '@/services/auth-error';
 
 type Mode = 'login' | 'signup';
 
@@ -33,40 +34,51 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+    const email = identifier.trim().toLowerCase();
+    const validationError = validateCredentials(email, password, mode);
+    if (validationError) {
+      Alert.alert('ตรวจสอบข้อมูล', validationError);
+      return;
+    }
+
     setSubmitting(true);
+    try {
+      if (mode === 'signup') {
+        const { error, needsEmailConfirmation } = await signUp(email, password);
 
-    if (mode === 'signup') {
-      const { error, needsEmailConfirmation } = await signUp(identifier.trim(), password);
-      setSubmitting(false);
-
-      if (error) {
-        Alert.alert('สมัครสมาชิกไม่สำเร็จ', error.message);
+        if (error) {
+          Alert.alert('สมัครสมาชิกไม่สำเร็จ', getAuthErrorMessage(error, 'signup'));
+          return;
+        }
+        if (needsEmailConfirmation) {
+          // โปรเจกต์ Supabase เปิดให้ต้องยืนยันอีเมลก่อน (ค่าเริ่มต้น) ต้องบอกตรง ๆ ไม่งั้นผู้ใช้จะ
+          // กดสมัครแล้วรู้สึกว่าไม่มีอะไรเกิดขึ้นเลย ทั้งที่จริงสมัครสำเร็จแล้วแค่รอยืนยัน
+          Alert.alert(
+            'สมัครสมาชิกสำเร็จ',
+            'ตรวจอีเมลของคุณเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบอีกครั้ง'
+          );
+          setMode('login');
+        }
+        // ถ้าไม่ต้องยืนยันอีเมล session จะถูกสร้างทันที และ onAuthStateChange จะพาเข้าแอปเอง
         return;
       }
-      if (needsEmailConfirmation) {
-        // โปรเจกต์ Supabase เปิดให้ต้องยืนยันอีเมลก่อน (ค่าเริ่มต้น) ต้องบอกตรง ๆ ไม่งั้นผู้ใช้จะ
-        // กดสมัครแล้วรู้สึกว่าไม่มีอะไรเกิดขึ้นเลย ทั้งที่จริงสมัครสำเร็จแล้วแค่รอยืนยัน
-        Alert.alert(
-          'สมัครสมาชิกสำเร็จ',
-          'ตรวจอีเมลของคุณเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบอีกครั้ง'
-        );
-        setMode('login');
+
+      const error = await signIn(email, password);
+      if (error) {
+        Alert.alert('เข้าสู่ระบบไม่สำเร็จ', getAuthErrorMessage(error, 'login'));
+        return;
       }
-      // ถ้าไม่ต้องยืนยันอีเมล (ปิดไว้ในโปรเจกต์ Supabase) session จะถูกสร้างทันที และ
-      // onAuthStateChange ใน hooks/use-auth.tsx จะพาเข้าแอปเองผ่าน Stack.Protected โดยไม่ต้องทำอะไรต่อ
-      return;
-    }
 
-    const error = await signIn(identifier.trim(), password);
-    if (error) {
+      router.replace('/');
+    } catch (error) {
+      Alert.alert(
+        mode === 'signup' ? 'สมัครสมาชิกไม่สำเร็จ' : 'เข้าสู่ระบบไม่สำเร็จ',
+        getAuthErrorMessage(error, mode)
+      );
+    } finally {
+      // สำคัญสำหรับ network error: ปุ่มต้องกลับมากดได้ ไม่ค้างที่ "กำลังดำเนินการ..."
       setSubmitting(false);
-      Alert.alert('เข้าสู่ระบบไม่สำเร็จ', error.message);
-      return;
     }
-
-    // ไม่ setSubmitting(false) ตรงนี้เพราะจอนี้กำลังจะถูกแทนที่จาก Stack.Protected ที่ตรวจจับว่า
-    // userId เปลี่ยนแล้วอยู่ดี router.replace ยังเรียกไว้ตามรูปแบบที่ Expo Router แนะนำอย่างเป็นทางการ
-    router.replace('/');
   };
 
   const handleOAuth = (providerLabel: string) => {
@@ -78,13 +90,56 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <AppText variant="display" weight="bold" align="center">
-          พร้อมวิ่ง
+      <View
+        style={[
+          styles.hero,
+          { backgroundColor: mode === 'login' ? colors.brand : colors.brandSoft },
+        ]}>
+        <View
+          style={[
+            styles.heroIcon,
+            { backgroundColor: mode === 'login' ? colors.brandStrong : colors.surface },
+          ]}>
+          <Ionicons
+            name={mode === 'login' ? 'footsteps' : 'sparkles'}
+            size={26}
+            color={mode === 'login' ? colors.onBrand : colors.brand}
+          />
+        </View>
+        <AppText
+          variant="display"
+          weight="bold"
+          align="center"
+          color={mode === 'login' ? colors.onBrand : colors.text}>
+          {mode === 'login' ? 'ยินดีต้อนรับกลับ' : 'เริ่มก้าวแรกของคุณ'}
         </AppText>
-        <AppText variant="body" tone="muted" align="center">
-          {mode === 'login' ? 'เข้าสู่ระบบเพื่อเริ่มวิ่ง' : 'สมัครสมาชิกเพื่อเริ่มวิ่ง'}
+        <AppText
+          variant="body"
+          align="center"
+          color={mode === 'login' ? colors.onBrand : colors.textMuted}>
+          {mode === 'login' ? 'พร้อมวิ่งรอพาคุณกลับไปซ้อมต่อ' : 'วางแผนการวิ่งที่เข้ากับชีวิตคุณ'}
         </AppText>
+
+        <View style={styles.heroPoints}>
+          {(mode === 'login'
+            ? ['แผนซ้อมของคุณยังอยู่ครบ', 'ดูความก้าวหน้าได้ทันที']
+            : ['แผนซ้อมเฉพาะคุณ', 'ติดตามทุกก้าวที่วิ่ง'])
+            .map((point) => (
+              <View key={point} style={styles.heroPoint}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  color={mode === 'login' ? colors.onBrand : colors.brand}
+                />
+                <AppText
+                  variant="small"
+                  color={mode === 'login' ? colors.onBrand : colors.text}
+                  style={styles.heroPointText}>
+                  {point}
+                </AppText>
+              </View>
+            ))}
+        </View>
       </View>
 
       <View style={[styles.modeSwitch, { backgroundColor: colors.surfaceAlt }]}>
@@ -180,7 +235,25 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: spacing.xs, marginTop: spacing.xxl, marginBottom: spacing.md },
+  hero: {
+    alignItems: 'center',
+    borderRadius: radius.xl,
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+  },
+  heroIcon: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+    height: 52,
+    width: 52,
+  },
+  heroPoints: { alignSelf: 'stretch', gap: spacing.xs, marginTop: spacing.md },
+  heroPoint: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs },
+  heroPointText: { flex: 1 },
   modeSwitch: {
     flexDirection: 'row',
     borderRadius: radius.pill,

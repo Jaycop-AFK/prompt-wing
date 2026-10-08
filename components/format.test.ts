@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatCadence, formatDistance, formatDuration, formatPace } from './format';
+import {
+  formatBaht,
+  formatCadence,
+  formatDistance,
+  formatDuration,
+  formatPace,
+  formatThaiDate,
+  formatThaiDay,
+} from './format';
 
 describe('formatPace', () => {
   it('จัดรูปเป็นนาที:วินาที โดยเติมศูนย์หน้าวินาทีที่หลักเดียว', () => {
@@ -10,6 +18,7 @@ describe('formatPace', () => {
 
   it('ปัดวินาทีเป็นจำนวนเต็ม', () => {
     expect(formatPace(450.6)).toBe('7:31');
+    expect(formatPace(359.6)).toBe('6:00');
   });
 });
 
@@ -43,5 +52,24 @@ describe('formatDistance', () => {
 
   it('ปัดทศนิยมตำแหน่งที่สาม ไม่ตัดทิ้งเฉย ๆ', () => {
     expect(formatDistance(5.126)).toBe('5.13 กม.');
+  });
+});
+
+describe('formatThaiDate และ formatThaiDay', () => {
+  it('ใช้ปี พ.ศ. และตัวย่อเดือนไทย', () => {
+    expect(formatThaiDate(new Date(2026, 8, 16, 9).getTime())).toBe('16 ก.ย. 2569');
+  });
+
+  it('วันในสัปดาห์ตรงกับวันที่จริง', () => {
+    expect(formatThaiDay(new Date(2026, 8, 16, 9).getTime())).toBe('พ. 16 ก.ย.');
+    expect(formatThaiDay(new Date(2026, 8, 17, 9).getTime())).toBe('พฤ. 17 ก.ย.');
+  });
+});
+
+describe('formatBaht', () => {
+  it('คั่นหลักพันและแสดงทศนิยมสองตำแหน่งเฉพาะเมื่อไม่ลงตัว', () => {
+    expect(formatBaht(99)).toBe('99');
+    expect(formatBaht(1188)).toBe('1,188');
+    expect(formatBaht(82.5)).toBe('82.50');
   });
 });

@@ -1,66 +1,74 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Fragment, useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
+import { PartnerAdCard } from '@/components/ads/partner-ad-card';
+import { BuddyPostCard } from '@/components/community/buddy-post-card';
+import { CommunityTabs, type CommunityTab } from '@/components/community/community-tabs';
+import { CreateBuddyModal, CreateEventModal } from '@/components/community/create-community-modals';
+import { EventCard } from '@/components/community/event-card';
+import { PACE_PRESETS_SEC_PER_KM, RUN_TIME_PRESETS } from '@/components/community/copy';
 import { formatPace } from '@/components/format';
-import {
-  formatEventDate,
-  formatFeeThb,
-  PACE_PRESETS_SEC_PER_KM,
-  RUN_TIME_PRESETS,
-} from '@/components/community/copy';
+import { AppIllustration } from '@/components/illustrations/app-illustration';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { AppText } from '@/components/ui/text';
 import { radius, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import type { RaceEvent, RunBuddy } from '@/services/community';
+import type { CreateRaceEventInput, CreateRunBuddyInput, RaceEvent, RunBuddy } from '@/services/community';
 import {
+  addRunBuddyComment,
+  createRaceEvent,
+  createRunBuddyPost,
   listRaceEvents,
   listRunBuddies,
   loadMyRunVisibility,
   saveMyRunVisibility,
+  toggleRaceEventJoined,
+  toggleRunBuddyJoined,
 } from '@/storage/community-storage';
+
+/** แทรกโฆษณาพาร์ทเนอร์หลังรายการที่เท่าไร ให้คนเห็นเนื้อหาของชุมชนก่อนเสมอ ไม่ใช่โฆษณาเป็นอย่างแรก */
+const AD_AFTER_INDEX = 1;
 
 export default function CommunityScreen() {
   const { colors } = useTheme();
-
+  const router = useRouter();
+  const [tab, setTab] = useState<CommunityTab>('events');
   const [events, setEvents] = useState<RaceEvent[]>([]);
   const [buddies, setBuddies] = useState<RunBuddy[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-
+  const [eventModal, setEventModal] = useState(false);
+  const [buddyModal, setBuddyModal] = useState(false);
   const [displayName, setDisplayName] = useState('');
-  const [myPace, setMyPace] = useState<number | null>(null);
-  const [myRunTime, setMyRunTime] = useState<string | null>(null);
+  const [myPace, setMyPace] = useState<number | null>(390);
+  const [myRunTime, setMyRunTime] = useState<string | null>('เช้าตรู่ (05:00-07:00)');
   const [visibleToOthers, setVisibleToOthers] = useState(false);
 
-  // โหลดใหม่ทุกครั้งที่กลับมาที่จอนี้ ไม่ใช่แค่ตอน mount ครั้งแรก เพราะการมองเห็น/pace ของคนอื่นอาจ
-  // เปลี่ยนระหว่างที่ไม่ได้อยู่หน้านี้ (รูปแบบเดียวกับ components/profile/daily-goal-card.tsx)
+  const reload = useCallback(async () => {
+    const [raceEvents, visibility] = await Promise.all([listRaceEvents(), loadMyRunVisibility()]);
+    setEvents(raceEvents);
+    setDisplayName(visibility.displayName ?? 'นักวิ่งพร้อมวิ่ง');
+    setMyPace(visibility.typicalPaceSecPerKm ?? 390);
+    setMyRunTime(visibility.typicalRunTime ?? 'เช้าตรู่ (05:00-07:00)');
+    setVisibleToOthers(visibility.visibleToOthers);
+    setBuddies(await listRunBuddies(visibility.typicalPaceSecPerKm ?? 390));
+    setLoaded(true);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      Promise.all([listRaceEvents(), loadMyRunVisibility()]).then(async ([raceEvents, visibility]) => {
-        if (cancelled) return;
-        setEvents(raceEvents);
-        setDisplayName(visibility.displayName ?? '');
-        setMyPace(visibility.typicalPaceSecPerKm);
-        setMyRunTime(visibility.typicalRunTime);
-        setVisibleToOthers(visibility.visibleToOthers);
-
-        const matched = await listRunBuddies(visibility.typicalPaceSecPerKm);
-        if (cancelled) return;
-        setBuddies(matched);
-        setLoaded(true);
+      let active = true;
+      reload().catch(() => {
+        if (active) setLoaded(true);
       });
-
       return () => {
-        cancelled = true;
+        active = false;
       };
-    }, [])
+    }, [reload]),
   );
 
   const handleSaveVisibility = async () => {
@@ -72,12 +80,8 @@ export default function CommunityScreen() {
         typicalRunTime: myRunTime,
         visibleToOthers,
       });
-      const matched = await listRunBuddies(myPace);
-      setBuddies(matched);
-      Alert.alert(
-        'บันทึกแล้ว',
-        visibleToOthers ? 'คนอื่นจะเห็นคุณในหน้าหาเพื่อนวิ่งได้แล้ว' : 'ปิดการมองเห็นของคุณแล้ว'
-      );
+      setBuddies(await listRunBuddies(myPace));
+      Alert.alert('บันทึกแล้ว', 'ใช้โปรไฟล์นี้ช่วยเรียงโพสต์ที่ pace ใกล้คุณ');
     } catch {
       Alert.alert('บันทึกไม่สำเร็จ', 'ลองใหม่อีกครั้ง');
     } finally {
@@ -85,204 +89,205 @@ export default function CommunityScreen() {
     }
   };
 
+  const handleCreateEvent = async (input: CreateRaceEventInput) => {
+    await createRaceEvent(input);
+    await reload();
+  };
+
+  const handleCreateBuddy = async (input: CreateRunBuddyInput) => {
+    await createRunBuddyPost(input);
+    await reload();
+  };
+
+  const handleJoinEvent = async (event: RaceEvent) => {
+    await toggleRaceEventJoined(event.id);
+    setEvents(await listRaceEvents());
+  };
+
+  const handleJoinBuddy = async (buddy: RunBuddy) => {
+    if (!buddy.joined && buddy.participantCount >= buddy.capacity) return;
+    await toggleRunBuddyJoined(buddy.id);
+    setBuddies(await listRunBuddies(myPace));
+  };
+
+  const handleComment = async (buddy: RunBuddy, message: string) => {
+    await addRunBuddyComment(buddy.id, buddy.comments, displayName.trim() || 'ฉัน', message);
+    setBuddies(await listRunBuddies(myPace));
+  };
+
   return (
     <Screen title="ชุมชน">
-      <View style={styles.section}>
-        <AppText variant="heading" weight="semibold">
-          ปฏิทินงานวิ่ง
-        </AppText>
-        {loaded && events.length === 0 ? (
-          <Card background={colors.surfaceAlt}>
-            <AppText variant="body" tone="muted">
-              ยังไม่มีงานวิ่งในปฏิทิน
-            </AppText>
-          </Card>
-        ) : (
-          events.map((event) => (
-            <Card key={event.id}>
-              <AppText variant="body" weight="semibold">
-                {event.name}
-              </AppText>
-              <AppText variant="small" tone="muted">
-                {formatEventDate(event.dateAt)} · {event.province}
-              </AppText>
-              <View style={styles.metaRow}>
-                <AppText variant="small" tone="muted">
-                  {event.distanceKm} กม.
-                </AppText>
-                <AppText variant="small" weight="semibold">
-                  {formatFeeThb(event.feeThb)}
-                </AppText>
-              </View>
-            </Card>
-          ))
-        )}
+      <View style={[styles.hero, { backgroundColor: colors.brandSoft }]}>
+        <View style={styles.heroCopy}>
+          <AppText variant="heading" weight="bold">วิ่งด้วยกัน สนุกกว่าเดิม</AppText>
+          <AppText variant="small" color={colors.brandStrong}>สร้างกิจกรรม นัดสถานที่ และหาเพื่อน pace ใกล้กัน</AppText>
+        </View>
+        <AppIllustration name="socialFriends" style={styles.heroIllustration} />
       </View>
 
-      <View style={styles.section}>
-        <AppText variant="heading" weight="semibold">
-          หาเพื่อนวิ่ง
-        </AppText>
-        <AppText variant="caption" tone="faint">
-          ป้ายยืนยันด้านล่างอิงจากการยืนยันอีเมลผ่านระบบเข้าสู่ระบบเท่านั้น ไม่ใช่การยืนยันตัวตน
-          แบบเต็มรูปแบบ ซึ่งยังอยู่นอกขอบเขตของแอปนี้
-        </AppText>
+      <CommunityTabs value={tab} onChange={setTab} />
 
-        <Card>
-          <AppText variant="body" weight="semibold">
-            การมองเห็นของฉัน
-          </AppText>
-
-          <View style={styles.row}>
-            <AppText variant="small">ให้คนอื่นเห็นฉันในหน้านี้</AppText>
-            <Switch
-              value={visibleToOthers}
-              onValueChange={setVisibleToOthers}
-              trackColor={{ false: colors.border, true: colors.brand }}
-              thumbColor={colors.surface}
-            />
+      {!loaded ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.brand} />
+          <AppText variant="small" tone="muted">กำลังโหลดชุมชน…</AppText>
+        </View>
+      ) : tab === 'events' ? (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitle}>
+              <AppText variant="heading" weight="semibold">อีเวนต์ใกล้คุณ</AppText>
+              <AppText variant="caption" tone="faint">รวมกิจกรรมตัวอย่างและกิจกรรมที่คุณสร้าง</AppText>
+            </View>
+            <CreateButton label="สร้าง" icon="add" onPress={() => setEventModal(true)} />
+          </View>
+          {events.map((event, index) => (
+            <Fragment key={String(event.id)}>
+              <EventCard
+                event={event}
+                onJoin={() => handleJoinEvent(event)}
+                onOpen={() => router.push({ pathname: '/event-detail', params: { event: JSON.stringify(event) } })}
+              />
+              {index === AD_AFTER_INDEX ? <PartnerAdCard placement="community" /> : null}
+            </Fragment>
+          ))}
+          {events.length <= AD_AFTER_INDEX ? <PartnerAdCard placement="community" /> : null}
+        </View>
+      ) : (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitle}>
+              <AppText variant="heading" weight="semibold">ฟีดหาเพื่อนวิ่ง</AppText>
+              <AppText variant="caption" tone="faint">โพสต์เวลา สถานที่ pace รูป และคุยกันในความคิดเห็น</AppText>
+            </View>
+            <CreateButton label="โพสต์" icon="create-outline" onPress={() => setBuddyModal(true)} />
           </View>
 
-          <TextInput
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="ชื่อที่อยากให้คนอื่นเห็น (ไม่ใช่อีเมล)"
-            placeholderTextColor={colors.textFaint}
-            accessibilityLabel="ชื่อที่อยากให้คนอื่นเห็น"
-            style={[
-              styles.input,
-              { color: colors.text, backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-            ]}
+          <RunnerProfileCard
+            displayName={displayName}
+            onDisplayName={setDisplayName}
+            pace={myPace}
+            onPace={setMyPace}
+            runTime={myRunTime}
+            onRunTime={setMyRunTime}
+            visible={visibleToOthers}
+            onVisible={setVisibleToOthers}
+            saving={saving}
+            onSave={handleSaveVisibility}
           />
 
-          <AppText variant="small" tone="muted">
-            pace ที่มักวิ่ง
-          </AppText>
-          <View style={styles.chipRow}>
-            {PACE_PRESETS_SEC_PER_KM.map((preset) => {
-              const active = preset === myPace;
-              return (
-                <Pressable
-                  key={preset}
-                  onPress={() => setMyPace(preset)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: active ? colors.brandSoft : colors.surfaceAlt,
-                      borderColor: active ? colors.brand : colors.border,
-                    },
-                  ]}>
-                  <AppText variant="small" weight="semibold" color={active ? colors.brandStrong : colors.text}>
-                    {formatPace(preset)} /กม.
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
+          {buddies.map((buddy, index) => (
+            <Fragment key={buddy.id}>
+              <BuddyPostCard
+                post={buddy}
+                onJoin={() => handleJoinBuddy(buddy)}
+                onComment={(message) => handleComment(buddy, message)}
+              />
+              {index === AD_AFTER_INDEX ? <PartnerAdCard placement="community" /> : null}
+            </Fragment>
+          ))}
+          {buddies.length <= AD_AFTER_INDEX ? <PartnerAdCard placement="community" /> : null}
+        </View>
+      )}
 
-          <AppText variant="small" tone="muted">
-            เวลาที่มักวิ่ง
-          </AppText>
-          <View style={styles.chipRow}>
-            {RUN_TIME_PRESETS.map((preset) => {
-              const active = preset === myRunTime;
-              return (
-                <Pressable
-                  key={preset}
-                  onPress={() => setMyRunTime(preset)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: active ? colors.brandSoft : colors.surfaceAlt,
-                      borderColor: active ? colors.brand : colors.border,
-                    },
-                  ]}>
-                  <AppText variant="small" weight="semibold" color={active ? colors.brandStrong : colors.text}>
-                    {preset}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Button
-            label={saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            onPress={handleSaveVisibility}
-            disabled={saving}
-            variant="secondary"
-          />
-        </Card>
-
-        {loaded && buddies.length === 0 ? (
-          <Card background={colors.surfaceAlt}>
-            <AppText variant="body" tone="muted">
-              ยังไม่มีคนที่จับคู่ได้ตอนนี้ ต้องมีผู้ใช้คนอื่นเปิดการมองเห็นและกรอก pace ไว้ก่อน
-            </AppText>
-          </Card>
-        ) : (
-          buddies.map((buddy) => (
-            <Card key={buddy.id}>
-              <View style={styles.metaRow}>
-                <AppText variant="body" weight="semibold">
-                  {buddy.displayName}
-                </AppText>
-                <View
-                  style={[
-                    styles.verifiedBadge,
-                    { backgroundColor: buddy.emailConfirmed ? colors.brandSoft : colors.surfaceAlt },
-                  ]}>
-                  <Ionicons
-                    name={buddy.emailConfirmed ? 'checkmark-circle' : 'help-circle-outline'}
-                    size={13}
-                    color={buddy.emailConfirmed ? colors.brandStrong : colors.textMuted}
-                  />
-                  <AppText
-                    variant="caption"
-                    weight="medium"
-                    color={buddy.emailConfirmed ? colors.brandStrong : colors.textMuted}>
-                    {buddy.emailConfirmed ? 'ยืนยันอีเมลแล้ว' : 'ยังไม่ยืนยันอีเมล'}
-                  </AppText>
-                </View>
-              </View>
-              <AppText variant="small" tone="muted">
-                pace {formatPace(buddy.paceSecPerKm)} /กม. · วิ่ง {buddy.runTime}
-              </AppText>
-            </Card>
-          ))
-        )}
-      </View>
+      <CreateEventModal visible={eventModal} onClose={() => setEventModal(false)} onCreate={handleCreateEvent} />
+      <CreateBuddyModal
+        visible={buddyModal}
+        defaultName={displayName}
+        onClose={() => setBuddyModal(false)}
+        onCreate={handleCreateBuddy}
+      />
     </Screen>
   );
 }
 
+function CreateButton({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" style={[styles.createButton, { backgroundColor: colors.brand }]}>
+      <Ionicons name={icon} size={17} color={colors.onBrand} />
+      <AppText variant="small" weight="semibold" color={colors.onBrand}>{label}</AppText>
+    </Pressable>
+  );
+}
+
+function RunnerProfileCard({
+  displayName, onDisplayName, pace, onPace, runTime, onRunTime, visible, onVisible, saving, onSave,
+}: {
+  displayName: string;
+  onDisplayName: (value: string) => void;
+  pace: number | null;
+  onPace: (value: number) => void;
+  runTime: string | null;
+  onRunTime: (value: string) => void;
+  visible: boolean;
+  onVisible: (value: boolean) => void;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  const { colors } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <Card background={colors.surfaceAlt}>
+      <Pressable onPress={() => setExpanded((value) => !value)} style={styles.profileHeader} accessibilityRole="button">
+        <View style={styles.profileCopy}>
+          <AppText variant="body" weight="semibold">โปรไฟล์จับคู่ของฉัน</AppText>
+          <AppText variant="caption" tone="faint">
+            {formatPace(pace ?? 390)} /กม. · {runTime ?? 'ยังไม่ระบุเวลา'}
+          </AppText>
+        </View>
+        <Ionicons name={expanded ? 'chevron-up' : 'options-outline'} size={20} color={colors.textMuted} />
+      </Pressable>
+      {expanded ? (
+        <>
+          <View style={styles.visibilityRow}>
+            <AppText variant="small">แสดงโปรไฟล์ให้สมาชิกจริงเห็น</AppText>
+            <Switch value={visible} onValueChange={onVisible} trackColor={{ false: colors.border, true: colors.brand }} thumbColor={colors.surface} />
+          </View>
+          <TextInput
+            value={displayName}
+            onChangeText={onDisplayName}
+            placeholder="ชื่อที่แสดง"
+            placeholderTextColor={colors.textFaint}
+            style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]}
+          />
+          <AppText variant="small" tone="muted">pace ปกติ</AppText>
+          <View style={styles.chipRow}>
+            {PACE_PRESETS_SEC_PER_KM.map((value) => <ProfileChip key={value} active={pace === value} label={formatPace(value)} onPress={() => onPace(value)} />)}
+          </View>
+          <AppText variant="small" tone="muted">เวลาที่มักวิ่ง</AppText>
+          <View style={styles.chipRow}>
+            {RUN_TIME_PRESETS.map((value) => <ProfileChip key={value} active={runTime === value} label={value} onPress={() => onRunTime(value)} />)}
+          </View>
+          <Button label={saving ? 'กำลังบันทึก…' : 'บันทึกโปรไฟล์'} onPress={onSave} disabled={saving} variant="secondary" />
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
+function ProfileChip({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: active ? colors.brandSoft : colors.surface, borderColor: active ? colors.brand : colors.border }]}>
+      <AppText variant="caption" weight="semibold" color={active ? colors.brandStrong : colors.textMuted}>{label}</AppText>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  hero: { minHeight: 142, borderRadius: radius.xl, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  heroCopy: { flex: 1, gap: spacing.xs, zIndex: 1 },
+  heroIllustration: { width: 112, height: 126, alignSelf: 'flex-end' },
+  loading: { paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm },
   section: { gap: spacing.md },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  input: {
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 15,
-  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  sectionTitle: { flex: 1 },
+  createButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  profileHeader: { flexDirection: 'row', alignItems: 'center' },
+  profileCopy: { flex: 1 },
+  visibilityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  input: { minHeight: 46, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
+  chip: { borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
 });

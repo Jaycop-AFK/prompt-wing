@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateRunClearance, gradeHourlyClearance } from './run-clearance';
+import { evaluateDayOutlook, evaluateRunClearance, gradeHourlyClearance } from './run-clearance';
 import type { HourlyConditions } from './types';
 
 const HOUR = 60 * 60 * 1000;
@@ -462,5 +462,63 @@ describe('ฟ้ามืดก่อนพระอาทิตย์ขึ้�
     const result = evaluateRunClearance({ hours, sunrise, sunset: LATE_SUNSET, now: at(0) });
 
     expect(result.clearWindow).toEqual({ start: sunrise, end: at(10) });
+  });
+});
+
+describe('evaluateDayOutlook — ภาพรวมของวันสำหรับวางตารางซ้อมล่วงหน้า', () => {
+  it('บ่ายร้อนจัดไม่ทำให้เช้าที่เย็นสบายวิ่งไม่ได้ ระดับของวันคือระดับที่ดีที่สุด', () => {
+    const hours = goodDay().map((hour, h) => (h >= 11 && h <= 16 ? { ...hour, apparentTemperature: 42 } : hour));
+
+    const outlook = evaluateDayOutlook({ hours, sunrise: EARLY_SUNRISE, sunset: LATE_SUNSET, now: at(0) });
+
+    expect(outlook.bestLevel).toBe('green');
+    expect(outlook.factors).toEqual([]);
+    expect(outlook.clearWindow).toEqual({ start: EARLY_SUNRISE, end: at(11) });
+  });
+
+  it('วันที่ฝุ่นสูงทั้งวันบอกได้ว่าไม่มีช่วงเขียวเพราะ PM2.5', () => {
+    const hours = goodDay().map((hour) => ({ ...hour, pm25: 30 }));
+
+    const outlook = evaluateDayOutlook({ hours, sunrise: EARLY_SUNRISE, sunset: LATE_SUNSET, now: at(0) });
+
+    expect(outlook.bestLevel).toBe('yellow');
+    expect(outlook.factors).toEqual(['pm25']);
+    expect(outlook.clearWindow).toBeNull();
+  });
+
+  it('ไม่นับชั่วโมงก่อนพระอาทิตย์ขึ้น แม้จะเป็นชั่วโมงเดียวที่อากาศดี', () => {
+    const hours = goodDay().map((hour, h) => (h >= 6 ? { ...hour, pm25: 40 } : hour));
+
+    const outlook = evaluateDayOutlook({ hours, sunrise: EARLY_SUNRISE, sunset: LATE_SUNSET, now: at(0) });
+
+    expect(outlook.bestLevel).toBe('red');
+    expect(outlook.factors).toEqual(['pm25']);
+  });
+
+  it('ตัดชั่วโมงที่ผ่านไปแล้วของวันนี้ออก', () => {
+    const hours = goodDay().map((hour, h) => (h >= 12 ? { ...hour, apparentTemperature: 36 } : hour));
+
+    const outlook = evaluateDayOutlook({ hours, sunrise: EARLY_SUNRISE, sunset: LATE_SUNSET, now: at(13) });
+
+    expect(outlook.bestLevel).toBe('yellow');
+    expect(outlook.clearWindow).toBeNull();
+  });
+
+  it('หลังพระอาทิตย์ตกไม่เหลือชั่วโมงให้ประเมิน', () => {
+    const outlook = evaluateDayOutlook({ hours: goodDay(), sunrise: EARLY_SUNRISE, sunset: LATE_SUNSET, now: at(21) });
+
+    expect(outlook.bestLevel).toBeNull();
+    expect(outlook.hours).toHaveLength(24);
+  });
+
+  it('บอกเมื่อชั่วโมงกลางวันที่เหลือบางชั่วโมงไม่มีค่า PM2.5 จากพยากรณ์', () => {
+    const outlook = evaluateDayOutlook({
+      hours: dayWith(15, { pm25: null }),
+      sunrise: EARLY_SUNRISE,
+      sunset: LATE_SUNSET,
+      now: at(0),
+    });
+
+    expect(outlook.pm25Unknown).toBe(true);
   });
 });

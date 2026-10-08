@@ -9,9 +9,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { PlanReminderSync } from '@/components/training-plan/plan-reminder-sync';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { ProfileProvider } from '@/hooks/use-profile';
 import { ThemeProvider, useTheme } from '@/hooks/use-theme';
@@ -49,7 +51,13 @@ function RootNavigator() {
           <Stack.Screen name="run-summary" />
           <Stack.Screen name="run-history" />
           <Stack.Screen name="venue-detail" />
+          <Stack.Screen name="event-detail" />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="subscription" />
+          <Stack.Screen name="training-plan" />
+          <Stack.Screen name="progress-report" />
+          <Stack.Screen name="mock-watch" />
+          <Stack.Screen name="sources" />
           <Stack.Screen name="route-generator" />
         </Stack.Protected>
 
@@ -58,6 +66,7 @@ function RootNavigator() {
         </Stack.Protected>
       </Stack>
       <StatusBar style={dark ? 'light' : 'dark'} />
+      <PlanReminderSync />
     </>
   );
 }
@@ -76,16 +85,18 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        {/* AuthProvider ต้องอยู่นอก ProfileProvider เสมอ เพราะ ProfileProvider เรียก useAuth()
-            เพื่อรู้ userId แล้วโหลดโปรไฟล์ใหม่ทุกครั้งที่สถานะล็อกอินเปลี่ยน (ดู hooks/use-profile.tsx) */}
-        <AuthProvider>
-          <ProfileProvider>
-            <RootNavigator />
-          </ProfileProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          {/* AuthProvider ต้องอยู่นอก ProfileProvider เสมอ เพราะ ProfileProvider เรียก useAuth()
+              เพื่อรู้ userId แล้วโหลดโปรไฟล์ใหม่ทุกครั้งที่สถานะล็อกอินเปลี่ยน (ดู hooks/use-profile.tsx) */}
+          <AuthProvider>
+            <ProfileProvider>
+              <RootNavigator />
+            </ProfileProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

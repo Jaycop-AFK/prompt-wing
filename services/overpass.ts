@@ -2,6 +2,20 @@ import type { Coordinates } from './geo';
 import type { Availability, Venue, VenueAmenities, VenueKind } from './venue';
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_REQUEST_TIMEOUT_MS = 15_000;
+const MEMORY_CACHE_TTL_MS = 15 * 60 * 1000;
+
+interface MemoryCacheEntry {
+  cachedAt: number;
+  venues: Venue[];
+}
+
+const memoryCache = new Map<string, MemoryCacheEntry>();
+
+function cacheKey(coordinates: Coordinates, radiusMeters: number): string {
+  // ปัดประมาณ 110 เมตรเพื่อให้ GPS ที่แกว่งเล็กน้อยยังใช้ cache ชุดเดิมได้
+  return `${coordinates.latitude.toFixed(3)}:${coordinates.longitude.toFixed(3)}:${radiusMeters}`;
+}
 
 /**
  * ป้าย OSM ที่ถือว่าเป็นที่วิ่งได้ เลือกจากป้ายที่คนวิ่งจริงไปใช้งาน ไม่รวม amenity อื่นที่ไม่เกี่ยว
@@ -108,21 +122,50 @@ export function toVenue(element: OverpassElement): Venue | null {
 export async function fetchNearbyVenues(
   coordinates: Coordinates,
   radiusMeters: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  forceRefresh = false
 ): Promise<Venue[]> {
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    body: `data=${encodeURIComponent(buildQuery(coordinates, radiusMeters))}`,
-    // ต้องส่ง Accept กับ User-Agent เอง ยืนยันแล้วจากการยิงจริงว่าเซิร์ฟเวอร์นี้ (Apache) ปฏิเสธ
-    // คำขอที่ไม่มีสอง header นี้ด้วย 406 Not Acceptable ทันที ไม่ใช่ปัญหาที่ query หรือ body เลย
-    // ถ้าไม่มีสองบรรทัดนี้ ฟีเจอร์ทั้งตั๋วจะพังเงียบ ๆ ทุกครั้งจริง ไม่ใช่แค่บางกรณี
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: '*/*',
-      'User-Agent': 'prompt-wing-prototype/1.0',
-    },
-    signal,
-  });
+  const key = cacheKey(coordinates, radiusMeters);
+  const cached = memoryCache.get(key);
+  if (!forceRefresh && cached && Date.now() - cached.cachedAt < MEMORY_CACHE_TTL_MS) {
+    return cached.venues;
+  }
+
+  const requestController = new AbortController();
+  let timedOut = false;
+  const abortFromCaller = () => requestController.abort(signal?.reason);
+  if (signal?.aborted) abortFromCaller();
+  else signal?.addEventListener('abort', abortFromCaller, { once: true });
+
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    requestController.abort();
+  }, OVERPASS_REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(OVERPASS_URL, {
+      method: 'POST',
+      body: `data=${encodeURIComponent(buildQuery(coordinates, radiusMeters))}`,
+      // ต้องส่ง Accept กับ User-Agent เอง ยืนยันแล้วจากการยิงจริงว่าเซิร์ฟเวอร์นี้ (Apache) ปฏิเสธ
+      // คำขอที่ไม่มีสอง header นี้ด้วย 406 Not Acceptable ทันที ไม่ใช่ปัญหาที่ query หรือ body เลย
+      // ถ้าไม่มีสองบรรทัดนี้ ฟีเจอร์ทั้งตั๋วจะพังเงียบ ๆ ทุกครั้งจริง ไม่ใช่แค่บางกรณี
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: '*/*',
+        'User-Agent': 'prompt-wing-prototype/1.0',
+      },
+      signal: requestController.signal,
+    });
+  } catch (error) {
+    if (timedOut) {
+      throw new Error('บริการค้นหาที่วิ่งใช้เวลานานเกิน 15 วินาที');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortFromCaller);
+  }
 
   if (!response.ok) throw new Error(`Overpass ตอบกลับผิดพลาด: ${response.status}`);
 
@@ -133,5 +176,6 @@ export async function fetchNearbyVenues(
     const venue = toVenue(element);
     if (venue) venues.push(venue);
   }
+  memoryCache.set(key, { cachedAt: Date.now(), venues });
   return venues;
 }

@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { formatDistance, formatDuration, formatPace } from '@/components/format';
 import { DistanceChart } from '@/components/history/distance-chart';
+import { PlusBadge } from '@/components/plus/plus-badge';
 import { OBJECTIVE_LABEL } from '@/components/profile/copy';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -212,6 +213,18 @@ export default function RunHistoryScreen() {
         </AppText>
       </Card>
 
+      <Card onPress={() => router.push('/progress-report')} accessibilityLabel="เปิดรายงานพัฒนาการ">
+        <View style={styles.reportHeader}>
+          <AppText variant="heading" weight="semibold">
+            รายงานพัฒนาการ
+          </AppText>
+          <PlusBadge />
+        </View>
+        <AppText variant="small" tone="muted">
+          เทียบ 4 สัปดาห์ล่าสุดกับช่วงก่อนหน้า ทั้งระยะ pace ความสม่ำเสมอ และฟอร์ม พร้อมคำแนะนำที่ทำต่อได้
+        </AppText>
+      </Card>
+
       <Card>
         <AppText variant="heading" weight="semibold">
           แนวโน้มคะแนนฟอร์มการวิ่ง
@@ -309,6 +322,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   statsRow: { flexDirection: 'row' },
+  reportHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   goalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   goalTrack: { height: 8, borderRadius: radius.pill, overflow: 'hidden' },
   goalFill: { height: '100%', borderRadius: radius.pill },

@@ -42,8 +42,8 @@ export function HourlyStrip({ graded, hours, now }: Props) {
       </View>
 
       <View style={styles.axis}>
-        {axisLabels(graded).map((label) => (
-          <AppText key={label} variant="caption" tone="faint">
+        {axisLabels(graded).map((label, index) => (
+          <AppText key={`${index}-${label}`} variant="caption" tone="faint">
             {label}
           </AppText>
         ))}
